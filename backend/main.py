@@ -10,13 +10,17 @@ from contextlib import asynccontextmanager
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_response import ProcessResponseEnvelope, utc_timestamp
+from auth.deps import get_authenticated_user_id
+from config import get_settings
 from db.postgres import get_db, init_db
 from db.qdrant import init_qdrant
 from services.process_service import process_input
+from routes.analytics import router as analytics_router
 from scheduler.reminder_scheduler import (
     shutdown_reminder_scheduler,
     start_reminder_scheduler,
@@ -36,9 +40,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="TrackerAgent", version="0.1.0", lifespan=lifespan)
 
+_settings = get_settings()
+_cors_origins = [o.strip() for o in _settings.CORS_ORIGINS.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins or ["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(analytics_router)
+
 
 class ProcessRequest(BaseModel):
-    user_id: str
     input: str
     user_timezone: str | None = None
 
@@ -49,7 +63,11 @@ async def health():
 
 
 @app.post("/process", response_model=ProcessResponseEnvelope)
-async def process(req: ProcessRequest, db: AsyncSession = Depends(get_db)):
+async def process(
+    req: ProcessRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_authenticated_user_id),
+):
     request_id = str(uuid.uuid4())
     tz: ZoneInfo | None = None
     if req.user_timezone:

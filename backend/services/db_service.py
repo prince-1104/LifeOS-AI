@@ -1,13 +1,13 @@
 """Async Postgres helpers for transactions (SQLAlchemy 2 + AsyncSession)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Transaction
+from db.models import Memory, QueryLog, Reminder, Transaction
 
 
 class DBService:
@@ -83,3 +83,88 @@ class DBService:
             amt = s if s is not None else Decimal("0")
             out.append((str(c), Decimal(str(amt))))
         return out
+
+    async def get_daily_expense_totals_last_7_days(
+        self, user_id: str
+    ) -> list[tuple[date, Decimal]]:
+        """Sum expenses per calendar day for the last 7 days (inclusive), UTC date anchor."""
+        end = datetime.now(timezone.utc).date()
+        start = end - timedelta(days=6)
+        day_col = func.date(Transaction.event_time)
+        stmt = (
+            select(day_col, func.coalesce(func.sum(Transaction.amount), 0))
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.type == "expense",
+                day_col >= start,
+                day_col <= end,
+            )
+            .group_by(day_col)
+            .order_by(day_col)
+        )
+        result = await self.session.execute(stmt)
+        rows = result.all()
+        by_day: dict[date, Decimal] = {}
+        for d, total in rows:
+            if d is None:
+                continue
+            day = d if isinstance(d, date) else d
+            by_day[day] = Decimal(str(total)) if total is not None else Decimal("0")
+
+        out: list[tuple[date, Decimal]] = []
+        cur = start
+        while cur <= end:
+            out.append((cur, by_day.get(cur, Decimal("0"))))
+            cur += timedelta(days=1)
+        return out
+
+    async def get_recent_query_logs(
+        self, user_id: str, limit: int = 15
+    ) -> list[QueryLog]:
+        stmt = (
+            select(QueryLog)
+            .where(QueryLog.user_id == user_id)
+            .order_by(QueryLog.created_at.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_pending_reminders(
+        self, user_id: str, limit: int = 100
+    ) -> list[Reminder]:
+        stmt = (
+            select(Reminder)
+            .where(
+                Reminder.user_id == user_id,
+                Reminder.status == "pending",
+            )
+            .order_by(Reminder.reminder_time.asc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_recent_transactions(
+        self, user_id: str, limit: int = 50
+    ) -> list[Transaction]:
+        stmt = (
+            select(Transaction)
+            .where(Transaction.user_id == user_id)
+            .order_by(Transaction.event_time.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_recent_memories(
+        self, user_id: str, limit: int = 30
+    ) -> list[Memory]:
+        stmt = (
+            select(Memory)
+            .where(Memory.user_id == user_id)
+            .order_by(Memory.created_at.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

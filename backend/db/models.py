@@ -7,6 +7,20 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from db.postgres import Base
 
 
+class User(Base):
+    """Maps Clerk `sub` to app identity; created on first authenticated request."""
+
+    __tablename__ = "users"
+
+    id = Column(String(255), primary_key=True)
+    email = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class Memory(Base):
     __tablename__ = "memories"
 
