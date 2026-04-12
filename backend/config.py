@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     DEFAULT_USER_ID: str = "default"
     QDRANT_SCORE_THRESHOLD: float = 0.25
 
+    ORCHESTRATOR_MODEL: str = "gpt-4o-mini"
+
 
 @lru_cache
 def get_settings() -> Settings:

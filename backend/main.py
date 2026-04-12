@@ -11,11 +11,11 @@ from fastapi import Depends, FastAPI
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents import memory_agent, query_agent
 from config import get_settings
 from db.postgres import get_db, init_db
 from db.qdrant import init_qdrant
-from orchestrator.classifier import classify
+from orchestrator.orchestrator_llm import classify_llm
+from orchestrator.router import route
 
 
 @asynccontextmanager
@@ -44,12 +44,8 @@ async def health():
 
 @app.post("/process", response_model=ProcessResponse)
 async def process(req: ProcessRequest, db: AsyncSession = Depends(get_db)):
-    input_type = await classify(req.input)
     uid = get_settings().DEFAULT_USER_ID
-
-    if input_type == "memory":
-        result = await memory_agent.process(req.input, db, user_id=uid)
-    else:
-        result = await query_agent.process(req.input, user_id=uid)
+    orch = await classify_llm(req.input)
+    result, input_type = await route(req.input, orch, db, uid)
 
     return ProcessResponse(type=input_type, response=result)

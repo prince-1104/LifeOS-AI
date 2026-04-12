@@ -1,3 +1,10 @@
+"""
+Legacy rule-based classifier (regex + Gemini fallback).
+
+Production routing uses orchestrator_llm.classify_llm + router.route instead.
+Kept for reference or experiments only.
+"""
+
 import re
 
 from services.llm_service import classify_input as llm_classify
