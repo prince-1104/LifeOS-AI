@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,7 +65,6 @@ def filter_results(query: str, results: list[dict]) -> list[dict]:
 
     if filtered:
         return filtered
-    # Meaningful tokens but no payload matched — do not surface unrelated vector hits.
     return []
 
 
@@ -95,17 +95,66 @@ def handle_query(results: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _is_top_categories_intent(low: str) -> bool:
+    if "most" in low and ("spend" in low or "spending" in low):
+        return True
+    if "top" in low and "categor" in low:
+        return True
+    if "where" in low and "spending" in low:
+        return True
+    return False
+
+
+def _is_week_spend_intent(low: str) -> bool:
+    if not ("week" in low or "this week" in low):
+        return False
+    return "spend" in low or "spent" in low or "how much" in low
+
+
+async def _try_finance_db_answer(
+    text: str,
+    uid: str,
+    db: AsyncSession,
+) -> str | None:
+    low = text.lower()
+    svc = DBService(db)
+    thr = Decimal(str(settings.FINANCE_HIGH_SPEND_WEEK_THRESHOLD))
+
+    if "spend" in low and "today" in low:
+        total = await svc.get_total_spent_today(uid)
+        return f"You spent ₹{total} today."
+
+    if _is_week_spend_intent(low):
+        total = await svc.get_total_spent_last_7_days(uid)
+        msg = f"You spent ₹{total} in the last 7 days."
+        if total > thr:
+            msg += " That's quite high compared to typical weeks."
+        return msg
+
+    if _is_top_categories_intent(low):
+        rows = await svc.get_spending_by_category(uid, limit=10)
+        top3 = rows[:3]
+        if not top3:
+            return "No spending data found."
+        lines = ["Your top spending categories:"]
+        for cat, amt in top3:
+            lines.append(f"- {cat}: ₹{amt}")
+        return "\n".join(lines)
+
+    return None
+
+
 async def process(
     text: str,
     user_id: str | None = None,
     db: AsyncSession | None = None,
 ) -> str:
     uid = user_id if user_id is not None else settings.DEFAULT_USER_ID
-    low = text.lower()
-    if db is not None and "spend" in low and "today" in low:
-        svc = DBService(db)
-        total = await svc.get_total_spent_today(uid)
-        return f"You spent ₹{total} today."
+
+    if db is not None:
+        finance_reply = await _try_finance_db_answer(text, uid, db)
+        if finance_reply is not None:
+            return finance_reply
 
     payloads = await search_memory_payloads(query=text, user_id=uid)
     for p in payloads:

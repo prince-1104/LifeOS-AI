@@ -1,4 +1,5 @@
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,8 @@ class Settings(BaseSettings):
     QDRANT_SCORE_THRESHOLD: float = 0.25
 
     ORCHESTRATOR_MODEL: str = "gpt-4o-mini"
+
+    FINANCE_HIGH_SPEND_WEEK_THRESHOLD: float = 5000.0
 
 
 @lru_cache

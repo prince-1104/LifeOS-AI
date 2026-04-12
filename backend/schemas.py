@@ -11,6 +11,8 @@ class OrchestratorOutput(BaseModel):
 
     amount: float | None = None
     category: str | None = None
+    transaction_type: Literal["income", "expense"] | None = None
+    source: str | None = None
 
     time: str | None = None
     task: str | None = None

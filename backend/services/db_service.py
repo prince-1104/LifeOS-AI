@@ -1,5 +1,6 @@
 """Async Postgres helpers for transactions (SQLAlchemy 2 + AsyncSession)."""
 
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -23,8 +24,6 @@ class DBService:
         """
         now = data.get("event_time")
         if now is None:
-            from datetime import datetime, timezone
-
             now = datetime.now(timezone.utc)
 
         row = Transaction(
@@ -50,3 +49,37 @@ class DBService:
         result = await self.session.execute(stmt)
         total = result.scalar_one()
         return Decimal(str(total)) if total is not None else Decimal("0")
+
+    async def get_total_spent_last_7_days(self, user_id: str) -> Decimal:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == "expense",
+            Transaction.event_time >= cutoff,
+        )
+        result = await self.session.execute(stmt)
+        total = result.scalar_one()
+        return Decimal(str(total)) if total is not None else Decimal("0")
+
+    async def get_spending_by_category(
+        self, user_id: str, limit: int = 10
+    ) -> list[tuple[str, Decimal]]:
+        """Sum expenses by category; NULL category becomes 'uncategorized'."""
+        cat = func.coalesce(Transaction.category, "uncategorized")
+        stmt = (
+            select(cat, func.sum(Transaction.amount))
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.type == "expense",
+            )
+            .group_by(cat)
+            .order_by(func.sum(Transaction.amount).desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        rows = result.all()
+        out: list[tuple[str, Decimal]] = []
+        for c, s in rows:
+            amt = s if s is not None else Decimal("0")
+            out.append((str(c), Decimal(str(amt))))
+        return out

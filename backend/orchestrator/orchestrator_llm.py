@@ -30,6 +30,8 @@ Rules:
 - No explanation
 - Extract structured data when possible
 - Keep values clean and minimal
+- For finance: use "transaction_type" "income" or "expense" (not the top-level "type" field).
+- For finance income/expense, include "source" when the user names a person or place (e.g. sumit).
 
 Examples:
 
@@ -53,7 +55,26 @@ Output:
 {
   "type": "finance",
   "amount": 200,
+  "transaction_type": "expense",
   "category": "food"
+}
+
+Input: "I paid 200 for food"
+Output:
+{
+  "type": "finance",
+  "amount": 200,
+  "transaction_type": "expense",
+  "category": "food"
+}
+
+Input: "I received 1000 from sumit"
+Output:
+{
+  "type": "finance",
+  "amount": 1000,
+  "transaction_type": "income",
+  "source": "sumit"
 }
 
 Input: "remind me at 7pm to go gym"

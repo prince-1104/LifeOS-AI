@@ -44,9 +44,16 @@ async def process(
     if orch.amount is None:
         return "I couldn't understand the amount."
 
-    txn_type = infer_transaction_type(user_input)
-    source = extract_source(user_input, txn_type)
-    category = (orch.category or "general").strip() or "general"
+    txn_type = (
+        orch.transaction_type if orch.transaction_type is not None else infer_transaction_type(user_input)
+    )
+    source = orch.source if orch.source and str(orch.source).strip() else extract_source(user_input, txn_type)
+
+    cat_raw = orch.category
+    if cat_raw is not None and str(cat_raw).strip():
+        category = str(cat_raw).strip()
+    else:
+        category = "general"
 
     data = {
         "type": txn_type,
