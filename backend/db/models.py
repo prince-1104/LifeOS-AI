@@ -65,3 +65,71 @@ class Reminder(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+class QueryLog(Base):
+    """Audit trail for /process calls (debugging, analytics, prompt iteration)."""
+
+    __tablename__ = "query_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    request_id = Column(String(36), nullable=True)
+    user_id = Column(String(255), nullable=False)
+    query = Column(Text, nullable=False)
+    response = Column(Text, nullable=False)
+    result_type = Column(String(64), nullable=False)
+    latency_ms_total = Column(Numeric(12, 3), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class OrchestratorLog(Base):
+    __tablename__ = "orchestrator_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    request_id = Column(String(36), nullable=False)
+    user_id = Column(String(255), nullable=False)
+    input_text = Column(Text, nullable=False)
+    orchestrator_json = Column(Text, nullable=True)
+    latency_ms = Column(Numeric(12, 3), nullable=False)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class AgentLog(Base):
+    __tablename__ = "agent_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    request_id = Column(String(36), nullable=False)
+    user_id = Column(String(255), nullable=False)
+    agent = Column(String(64), nullable=False)
+    latency_ms = Column(Numeric(12, 3), nullable=False)
+    response_preview = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class ErrorLog(Base):
+    __tablename__ = "error_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    request_id = Column(String(36), nullable=False)
+    user_id = Column(String(255), nullable=False)
+    stage = Column(String(32), nullable=False)
+    message = Column(Text, nullable=False)
+    detail = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )

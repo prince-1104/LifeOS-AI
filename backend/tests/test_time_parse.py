@@ -1,6 +1,7 @@
 """Unit tests for utils.time_parse.parse_time."""
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -34,3 +35,12 @@ def test_parse_12h_pm():
 def test_parse_empty_raises():
     with pytest.raises(ValueError):
         parse_time("", now=datetime.now(timezone.utc))
+
+
+def test_parse_with_user_timezone_local_wall_clock():
+    """20:00 in Asia/Kolkata on the same local calendar day as now_utc."""
+    kolkata = ZoneInfo("Asia/Kolkata")
+    now = datetime(2026, 4, 12, 10, 0, tzinfo=timezone.utc)
+    dt = parse_time("20:00", now=now, user_tz=kolkata)
+    assert dt.tzinfo == timezone.utc
+    assert dt == datetime(2026, 4, 12, 14, 30, tzinfo=timezone.utc)

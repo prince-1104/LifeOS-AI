@@ -14,7 +14,7 @@ scheduler = AsyncIOScheduler()
 async def process_due_reminders() -> None:
     now = datetime.now(timezone.utc)
     async with async_session() as session:
-        stmt = select(Reminder.id, Reminder.task).where(
+        stmt = select(Reminder.id, Reminder.user_id, Reminder.task).where(
             Reminder.status == "pending",
             Reminder.reminder_time <= now,
         )
@@ -23,8 +23,8 @@ async def process_due_reminders() -> None:
         if not rows:
             return
 
-        for rid, task in rows:
-            print(f"\U0001f514 Reminder: {task}")
+        for rid, uid, task in rows:
+            print(f"\U0001f514 Reminder (user_id={uid}): {task}")
 
         await session.execute(
             update(Reminder)

@@ -30,3 +30,13 @@ async def init_db():
                 "VARCHAR(255) NOT NULL DEFAULT 'default'"
             )
         )
+        await conn.execute(
+            text(
+                "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS request_id VARCHAR(36)"
+            )
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS latency_ms_total NUMERIC(12,3)"
+            )
+        )

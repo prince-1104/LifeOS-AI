@@ -1,3 +1,5 @@
+from zoneinfo import ZoneInfo
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas import OrchestratorOutput
@@ -10,13 +12,14 @@ async def process(
     orch: OrchestratorOutput,
     db: AsyncSession,
     user_id: str,
+    user_timezone: ZoneInfo | None = None,
 ) -> str:
     del user_input  # orchestrator fields are source of truth
     if not orch.time or not orch.task or not str(orch.task).strip():
         return "I couldn't understand the reminder."
 
     try:
-        reminder_time = parse_time(str(orch.time).strip())
+        reminder_time = parse_time(str(orch.time).strip(), user_tz=user_timezone)
     except ValueError:
         return "I couldn't parse the reminder time."
 

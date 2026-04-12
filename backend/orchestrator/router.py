@@ -1,3 +1,5 @@
+from zoneinfo import ZoneInfo
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents import finance_agent, memory_agent, query_agent, reminder_agent
@@ -9,6 +11,7 @@ async def route(
     orch: OrchestratorOutput,
     db: AsyncSession,
     user_id: str,
+    user_timezone: ZoneInfo | None = None,
 ) -> tuple[str, str]:
     """
     Dispatch by orchestrator type. Returns (response_text, type_string).
@@ -34,7 +37,13 @@ async def route(
         return text, "finance"
 
     if t == "reminder":
-        text = await reminder_agent.process(user_input, orch, db, user_id)
+        text = await reminder_agent.process(
+            user_input,
+            orch,
+            db,
+            user_id,
+            user_timezone=user_timezone,
+        )
         return text, "reminder"
 
     return "I didn't understand.", "unknown"

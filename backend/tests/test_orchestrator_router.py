@@ -31,7 +31,13 @@ async def test_route_reminder_delegates(mock_rem):
     text, t = await route("remind me tomorrow at 6", orch, db, "default")
     assert t == "reminder"
     assert "Reminder set" in text
-    mock_rem.assert_awaited_once_with("remind me tomorrow at 6", orch, db, "default")
+    mock_rem.assert_awaited_once_with(
+        "remind me tomorrow at 6",
+        orch,
+        db,
+        "default",
+        user_timezone=None,
+    )
 
 
 @pytest.mark.asyncio

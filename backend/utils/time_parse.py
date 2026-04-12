@@ -2,6 +2,7 @@
 
 import re
 from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 
 def _combine_utc(d: date, hour: int, minute: int) -> datetime:
@@ -12,7 +13,6 @@ def _parse_hour_minute(s: str) -> tuple[int, int] | None:
     s = s.strip().lower()
     s = re.sub(r"\s+", " ", s)
 
-    # HH:MM with optional am/pm
     m = re.match(
         r"^(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?|am|pm)?$",
         s,
@@ -31,7 +31,6 @@ def _parse_hour_minute(s: str) -> tuple[int, int] | None:
             return None
         return h, mn
 
-    # e.g. "7pm", "7:30 pm"
     m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?|am|pm)$", s, re.I)
     if m:
         h = int(m.group(1))
@@ -48,26 +47,24 @@ def _parse_hour_minute(s: str) -> tuple[int, int] | None:
     return None
 
 
-def parse_time(time_str: str, *, now: datetime | None = None) -> datetime:
+def parse_time(
+    time_str: str,
+    *,
+    now: datetime | None = None,
+    user_tz: ZoneInfo | None = None,
+) -> datetime:
     """
     Interpret time_str as a reminder instant in UTC.
 
-    - Supports "HH:MM", "H:MMam/pm", "Ham/pm", optional "tomorrow" in the string.
-    - If the resulting instant is not after ``now``, advances by one day (repeat until future).
+    With ``user_tz``, "today" / "tomorrow" use that zone's calendar; wall-clock is local
+    then converted to UTC. Without it, behavior matches legacy UTC calendar logic.
     """
     if not time_str or not str(time_str).strip():
         raise ValueError("empty time string")
 
-    now = now if now is not None else datetime.now(timezone.utc)
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
-    else:
-        now = now.astimezone(timezone.utc)
-
     raw = str(time_str).strip()
     low = raw.lower()
     use_tomorrow = "tomorrow" in low
-    # strip tomorrow for time token extraction
     rest = re.sub(r"\bto-?morrow\b", " ", low, flags=re.I).strip()
 
     hm = _parse_hour_minute(rest)
@@ -75,11 +72,40 @@ def parse_time(time_str: str, *, now: datetime | None = None) -> datetime:
         raise ValueError(f"unrecognized time format: {time_str!r}")
 
     hour, minute = hm
-    base_date = now.date()
+
+    if user_tz is None:
+        now_utc = now if now is not None else datetime.now(timezone.utc)
+        if now_utc.tzinfo is None:
+            now_utc = now_utc.replace(tzinfo=timezone.utc)
+        else:
+            now_utc = now_utc.astimezone(timezone.utc)
+
+        base_date = now_utc.date()
+        if use_tomorrow:
+            base_date = base_date + timedelta(days=1)
+
+        dt = _combine_utc(base_date, hour, minute)
+        while dt <= now_utc:
+            dt += timedelta(days=1)
+        return dt
+
+    now_utc = now if now is not None else datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    else:
+        now_utc = now_utc.astimezone(timezone.utc)
+
+    now_local = now_utc.astimezone(user_tz)
+    base_date = now_local.date()
     if use_tomorrow:
         base_date = base_date + timedelta(days=1)
 
-    dt = _combine_utc(base_date, hour, minute)
-    while dt <= now:
-        dt += timedelta(days=1)
-    return dt
+    local_dt = datetime.combine(
+        base_date,
+        time(hour, minute),
+        tzinfo=user_tz,
+    )
+    dt_utc = local_dt.astimezone(timezone.utc)
+    while dt_utc <= now_utc:
+        dt_utc += timedelta(days=1)
+    return dt_utc

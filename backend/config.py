@@ -19,6 +19,11 @@ class Settings(BaseSettings):
 
     FINANCE_HIGH_SPEND_WEEK_THRESHOLD: float = 5000.0
 
+    RATE_LIMIT_REQUESTS: int = 100
+    RATE_LIMIT_WINDOW_SECONDS: int = 3600
+
+    MAX_INPUT_LENGTH: int = 500
+
 
 @lru_cache
 def get_settings() -> Settings:
