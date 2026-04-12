@@ -44,3 +44,24 @@ class Transaction(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+class Reminder(Base):
+    __tablename__ = "reminders"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'done')",
+            name="ck_reminders_status",
+        ),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(255), nullable=False)
+    task = Column(Text, nullable=False)
+    reminder_time = Column(DateTime(timezone=True), nullable=False)
+    status = Column(String(20), nullable=False, default="pending")
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )

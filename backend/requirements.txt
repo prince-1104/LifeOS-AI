@@ -8,3 +8,4 @@ google-genai
 qdrant-client
 python-dotenv
 pytest
+apscheduler

@@ -1,16 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents import finance_agent, memory_agent, query_agent
+from agents import finance_agent, memory_agent, query_agent, reminder_agent
 from schemas import OrchestratorOutput
-
-
-def _reminder_stub(orch: OrchestratorOutput) -> str:
-    parts = ["Reminders / scheduler are not implemented yet."]
-    if orch.task:
-        parts.append(f"Task: {orch.task}.")
-    if orch.time:
-        parts.append(f"Time: {orch.time}.")
-    return " ".join(parts)
 
 
 async def route(
@@ -43,6 +34,7 @@ async def route(
         return text, "finance"
 
     if t == "reminder":
-        return _reminder_stub(orch), "reminder"
+        text = await reminder_agent.process(user_input, orch, db, user_id)
+        return text, "reminder"
 
     return "I didn't understand.", "unknown"

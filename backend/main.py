@@ -16,13 +16,21 @@ from db.postgres import get_db, init_db
 from db.qdrant import init_qdrant
 from orchestrator.orchestrator_llm import classify_llm
 from orchestrator.router import route
+from scheduler.reminder_scheduler import (
+    shutdown_reminder_scheduler,
+    start_reminder_scheduler,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     await init_qdrant()
-    yield
+    start_reminder_scheduler()
+    try:
+        yield
+    finally:
+        shutdown_reminder_scheduler()
 
 
 app = FastAPI(title="TrackerAgent", version="0.1.0", lifespan=lifespan)

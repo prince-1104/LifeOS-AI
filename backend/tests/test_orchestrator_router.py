@@ -23,12 +23,15 @@ async def test_route_finance_delegates(mock_fin):
 
 
 @pytest.mark.asyncio
-async def test_route_reminder_stub():
+@patch("orchestrator.router.reminder_agent.process", new_callable=AsyncMock)
+async def test_route_reminder_delegates(mock_rem):
+    mock_rem.return_value = "Reminder set for go gym at 2026-04-12 06:00 UTC."
     db = MagicMock()
     orch = OrchestratorOutput(type="reminder", task="go gym", time="06:00")
     text, t = await route("remind me tomorrow at 6", orch, db, "default")
     assert t == "reminder"
-    assert "not implemented" in text.lower()
+    assert "Reminder set" in text
+    mock_rem.assert_awaited_once_with("remind me tomorrow at 6", orch, db, "default")
 
 
 @pytest.mark.asyncio
