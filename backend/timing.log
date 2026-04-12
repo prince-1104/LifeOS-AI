@@ -1,0 +1,11 @@
+Request: GET /transactions - Time: 8.6484s
+Request: GET /transactions - Time: 4.5088s
+Request: GET /memories - Time: 5.7277s
+Request: GET /memories - Time: 15.6350s
+Request: GET /analytics/dashboard - Time: 20.3383s
+DB query /memories took: 6.1762s
+Request: GET /memories - Time: 9.9679s
+DB query /memories took: 2.1880s
+Request: GET /memories - Time: 2.1917s
+Request: GET /analytics/dashboard - Time: 11.3704s
+Request: GET /analytics/dashboard - Time: 10.8199s

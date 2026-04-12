@@ -15,7 +15,11 @@ def _jwk_client() -> PyJWKClient:
     settings = get_settings()
     if not settings.CLERK_JWKS_URL or not settings.CLERK_JWKS_URL.strip():
         raise RuntimeError("CLERK_JWKS_URL is not configured")
-    return PyJWKClient(settings.CLERK_JWKS_URL)
+    return PyJWKClient(
+        settings.CLERK_JWKS_URL,
+        cache_jwk_set=True,
+        lifespan=3600,
+    )
 
 
 def verify_clerk_bearer_token(authorization: str | None) -> tuple[str, dict[str, Any]]:

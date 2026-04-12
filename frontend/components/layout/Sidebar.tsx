@@ -1,8 +1,8 @@
 "use client";
 
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton, useUser, useClerk } from "@clerk/nextjs";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const nav = [
   { href: "/chat", label: "Chat" },
@@ -20,7 +20,9 @@ export function Sidebar({
   onCloseMobile: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
 
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
   const label =
@@ -87,6 +89,12 @@ export function Sidebar({
             }}
           />
         </div>
+        <button
+          onClick={() => signOut(() => router.push("/"))}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] py-2 text-xs font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-400"
+        >
+          Log Out
+        </button>
       </div>
     </aside>
   );

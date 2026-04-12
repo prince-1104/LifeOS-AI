@@ -1,12 +1,13 @@
 """Read-only analytics and entity list routes for the LifeOS dashboard."""
 
+import asyncio
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.deps import get_authenticated_user_id
-from db.postgres import get_db
+from db.postgres import get_db, async_session
 from schemas_analytics import (
     ActivityItem,
     CategorySlice,
@@ -26,16 +27,42 @@ from services.db_service import DBService
 router = APIRouter(tags=["analytics"])
 
 
+async def _query_total(user_id: str):
+    async with async_session() as s:
+        svc = DBService(s)
+        return await svc.get_total_spent_today(user_id)
+
+
+async def _query_daily(user_id: str):
+    async with async_session() as s:
+        svc = DBService(s)
+        return await svc.get_daily_expense_totals_last_7_days(user_id)
+
+
+async def _query_cats(user_id: str):
+    async with async_session() as s:
+        svc = DBService(s)
+        return await svc.get_spending_by_category(user_id, limit=8)
+
+
+async def _query_logs(user_id: str):
+    async with async_session() as s:
+        svc = DBService(s)
+        return await svc.get_recent_query_logs(user_id, limit=15)
+
+
 @router.get("/analytics/dashboard", response_model=DashboardResponse)
 async def analytics_dashboard(
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_authenticated_user_id),
 ) -> DashboardResponse:
-    svc = DBService(db)
-    total = await svc.get_total_spent_today(user_id)
-    daily = await svc.get_daily_expense_totals_last_7_days(user_id)
-    cats = await svc.get_spending_by_category(user_id, limit=8)
-    logs = await svc.get_recent_query_logs(user_id, limit=15)
+    # Run all 4 queries in PARALLEL instead of sequentially
+    total, daily, cats, logs = await asyncio.gather(
+        _query_total(user_id),
+        _query_daily(user_id),
+        _query_cats(user_id),
+        _query_logs(user_id),
+    )
 
     weekly_series = [
         WeeklySeriesPoint(date=d.isoformat(), amount=decimal_str(amt))
@@ -104,13 +131,19 @@ async def list_transactions(
     return TransactionsListResponse(items=items)
 
 
+import time
+
 @router.get("/memories", response_model=MemoriesListResponse)
 async def list_memories(
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_authenticated_user_id),
 ) -> MemoriesListResponse:
+    t0 = time.perf_counter()
     svc = DBService(db)
     rows = await svc.list_recent_memories(user_id)
+    t1 = time.perf_counter()
+    with open("timing.log", "a") as f:
+        f.write(f"DB query /memories took: {(t1 - t0):.4f}s\n")
     items = [
         MemoryRow(
             id=UUID(str(r.id)),

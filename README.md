@@ -10,6 +10,8 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+uvicorn main:app --reload --host 127.0.0.1 --port 6060
+
 
 Create `backend/.env` from [`backend/.env.example`](backend/.env.example). Required variables include `DATABASE_URL`, AI keys, Qdrant, and **Clerk** settings for JWT verification:
 
@@ -19,7 +21,7 @@ Create `backend/.env` from [`backend/.env.example`](backend/.env.example). Requi
 The API **never** trusts `user_id` from the client. The frontend sends `Authorization: Bearer <Clerk session JWT>`; FastAPI verifies the token and uses the `sub` claim as `user_id`.
 
 ```bash
-uvicorn main:app --reload --host 127.0.0.1 --port 6060
+
 ```
 
 ## Frontend (port 3006)

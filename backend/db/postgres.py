@@ -6,9 +6,15 @@ from config import get_settings
 
 settings = get_settings()
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False, pool_pre_ping=True)
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    pool_pre_ping=False,  # disabled because 1 round-trip adds 250+ ms latency to Neon 
+    pool_size=5,          # keep connections alive
+    max_overflow=10,
+    pool_recycle=1800     # 30 mins recycle
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
 
 class Base(DeclarativeBase):
     pass

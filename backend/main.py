@@ -38,7 +38,10 @@ async def lifespan(app: FastAPI):
         shutdown_reminder_scheduler()
 
 
+from timing_middleware import TimingMiddleware
+
 app = FastAPI(title="TrackerAgent", version="0.1.0", lifespan=lifespan)
+app.add_middleware(TimingMiddleware)
 
 _settings = get_settings()
 _cors_origins = [o.strip() for o in _settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -84,7 +87,7 @@ async def process(
             )
 
     result = await process_input(
-        req.user_id,
+        user_id,
         req.input,
         db,
         request_id=request_id,
