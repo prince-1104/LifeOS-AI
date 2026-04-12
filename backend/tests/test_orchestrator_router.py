@@ -11,13 +11,15 @@ from schemas import OrchestratorOutput
 
 
 @pytest.mark.asyncio
-async def test_route_finance_stub():
+@patch("orchestrator.router.finance_agent.process", new_callable=AsyncMock)
+async def test_route_finance_delegates(mock_fin):
+    mock_fin.return_value = "Recorded expense of ₹500 for general (shiv)."
     db = MagicMock()
-    orch = OrchestratorOutput(type="finance", amount=500.0, category="shiv")
+    orch = OrchestratorOutput(type="finance", amount=500.0, category="general")
     text, t = await route("I paid 500 to shiv", orch, db, "default")
     assert t == "finance"
-    assert "not implemented" in text.lower()
-    assert "500" in text
+    assert "Recorded" in text
+    mock_fin.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -63,7 +65,7 @@ async def test_route_query_uses_orch_query(mock_q):
     orch = OrchestratorOutput(type="query", query="keys location")
     text, t = await route("can you tell me where my keys are", orch, db, "u1")
     assert t == "query"
-    mock_q.assert_awaited_once_with("keys location", user_id="u1")
+    mock_q.assert_awaited_once_with("keys location", user_id="u1", db=db)
 
 
 @pytest.mark.asyncio
@@ -71,8 +73,9 @@ async def test_route_query_uses_orch_query(mock_q):
 async def test_route_query_fallback_user_text(mock_q):
     mock_q.return_value = "ok"
     orch = OrchestratorOutput(type="query", query=None)
-    await route("raw question", orch, MagicMock(), "u1")
-    mock_q.assert_awaited_once_with("raw question", user_id="u1")
+    db = MagicMock()
+    await route("raw question", orch, db, "u1")
+    mock_q.assert_awaited_once_with("raw question", user_id="u1", db=db)
 
 
 @pytest.mark.asyncio

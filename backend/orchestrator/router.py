@@ -1,16 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents import memory_agent, query_agent
+from agents import finance_agent, memory_agent, query_agent
 from schemas import OrchestratorOutput
-
-
-def _finance_stub(orch: OrchestratorOutput) -> str:
-    parts = ["Finance tracking is not implemented yet."]
-    if orch.amount is not None:
-        parts.append(f"Parsed amount: {orch.amount}.")
-    if orch.category:
-        parts.append(f"Category: {orch.category}.")
-    return " ".join(parts)
 
 
 def _reminder_stub(orch: OrchestratorOutput) -> str:
@@ -44,11 +35,12 @@ async def route(
 
     if t == "query":
         q = orch.query if orch.query else user_input
-        text = await query_agent.process(q, user_id=user_id)
+        text = await query_agent.process(q, user_id=user_id, db=db)
         return text, "query"
 
     if t == "finance":
-        return _finance_stub(orch), "finance"
+        text = await finance_agent.process(user_input, orch, db, user_id)
+        return text, "finance"
 
     if t == "reminder":
         return _reminder_stub(orch), "reminder"

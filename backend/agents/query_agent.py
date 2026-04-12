@@ -1,6 +1,9 @@
 import re
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from config import get_settings
+from services.db_service import DBService
 from services.memory_service import search_memory_payloads
 
 settings = get_settings()
@@ -92,8 +95,18 @@ def handle_query(results: list[dict]) -> str:
     return "\n".join(lines)
 
 
-async def process(text: str, user_id: str | None = None) -> str:
+async def process(
+    text: str,
+    user_id: str | None = None,
+    db: AsyncSession | None = None,
+) -> str:
     uid = user_id if user_id is not None else settings.DEFAULT_USER_ID
+    low = text.lower()
+    if db is not None and "spend" in low and "today" in low:
+        svc = DBService(db)
+        total = await svc.get_total_spent_today(uid)
+        return f"You spent ₹{total} today."
+
     payloads = await search_memory_payloads(query=text, user_id=uid)
     for p in payloads:
         p.pop("_score", None)
