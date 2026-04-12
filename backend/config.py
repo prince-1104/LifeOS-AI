@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     GEMINI_API_KEY: str
 
+    DEFAULT_USER_ID: str = "default"
+    QDRANT_SCORE_THRESHOLD: float = 0.25
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,19 +1,101 @@
-from services.memory_service import search_memories
+import re
+
+from config import get_settings
+from services.memory_service import search_memory_payloads
+
+settings = get_settings()
+
+_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "are",
+        "did",
+        "do",
+        "does",
+        "how",
+        "is",
+        "it",
+        "my",
+        "of",
+        "on",
+        "the",
+        "to",
+        "was",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+    }
+)
 
 
-async def process(text: str) -> str:
-    results = await search_memories(query=text, limit=3)
+def _query_tokens(query: str) -> list[str]:
+    raw = re.findall(r"[a-zA-Z0-9]+", query.lower())
+    return [t for t in raw if t not in _STOPWORDS and len(t) > 0]
 
-    if not results:
-        return "I don't have any memories related to that."
 
-    best = results[0]
-    content = best.payload.get("content", "")
+def _token_matches_content(content: str, token: str) -> bool:
+    if token in content:
+        return True
+    if len(token) > 2 and token.endswith("s") and token[:-1] in content:
+        return True
+    if len(token) > 2 and not token.endswith("s") and f"{token}s" in content:
+        return True
+    return False
 
-    if len(results) == 1:
-        return f"You noted: {content}"
 
-    lines = [f"Here's what I found ({len(results)} memories):"]
-    for i, r in enumerate(results, 1):
-        lines.append(f"  {i}. {r.payload.get('content', '')}")
+def filter_results(query: str, results: list[dict]) -> list[dict]:
+    tokens = _query_tokens(query)
+    if not tokens or not results:
+        return results
+
+    filtered: list[dict] = []
+    for r in results:
+        content = (r.get("content") or "").lower()
+        if all(_token_matches_content(content, tok) for tok in tokens):
+            filtered.append(r)
+
+    if filtered:
+        return filtered
+    # Meaningful tokens but no payload matched — do not surface unrelated vector hits.
+    return []
+
+
+def _dedupe_by_content(results: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    out: list[dict] = []
+    for r in results:
+        c = (r.get("content") or "").strip()
+        if not c or c in seen:
+            continue
+        seen.add(c)
+        out.append(r)
+    return out
+
+
+def handle_query(results: list[dict]) -> str:
+    rows = _dedupe_by_content(results)
+    if not rows:
+        return "I couldn't find anything."
+
+    if len(rows) == 1:
+        content = rows[0].get("content", "")
+        return f"You said: {content}"
+
+    lines = ["I found multiple related memories:"]
+    for r in rows:
+        lines.append(f"- {r.get('content', '')}")
     return "\n".join(lines)
+
+
+async def process(text: str, user_id: str | None = None) -> str:
+    uid = user_id if user_id is not None else settings.DEFAULT_USER_ID
+    payloads = await search_memory_payloads(query=text, user_id=uid)
+    for p in payloads:
+        p.pop("_score", None)
+    refined = filter_results(text, payloads)
+    return handle_query(refined)

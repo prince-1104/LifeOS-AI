@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents import memory_agent, query_agent
+from config import get_settings
 from db.postgres import get_db, init_db
 from db.qdrant import init_qdrant
 from orchestrator.classifier import classify
@@ -44,10 +45,11 @@ async def health():
 @app.post("/process", response_model=ProcessResponse)
 async def process(req: ProcessRequest, db: AsyncSession = Depends(get_db)):
     input_type = await classify(req.input)
+    uid = get_settings().DEFAULT_USER_ID
 
     if input_type == "memory":
-        result = await memory_agent.process(req.input, db)
+        result = await memory_agent.process(req.input, db, user_id=uid)
     else:
-        result = await query_agent.process(req.input)
+        result = await query_agent.process(req.input, user_id=uid)
 
     return ProcessResponse(type=input_type, response=result)
