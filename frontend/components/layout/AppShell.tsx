@@ -8,7 +8,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-[100dvh] w-full overflow-hidden text-slate-100">
       <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
       {mobileOpen ? (
         <button
@@ -18,7 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onClick={() => setMobileOpen(false)}
         />
       ) : null}
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="flex h-full min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-white/[0.06] bg-[#111111] px-4 py-3 md:hidden">
           <button
             type="button"

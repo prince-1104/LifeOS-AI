@@ -2,25 +2,39 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { getReminders, type ReminderRow } from "@/lib/api";
+import { getReminders, type ReminderRow, deleteReminder } from "@/lib/api";
+import { TrashIcon } from "@heroicons/react/24/outline";
 
 export default function RemindersPage() {
   const { getToken, isLoaded } = useAuth();
   const [items, setItems] = useState<ReminderRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchItems = () => {
     if (!isLoaded) return;
     getReminders(getToken)
       .then(setItems)
       .catch((e) =>
         setError(e instanceof Error ? e.message : "Could not load reminders."),
       );
+  };
+
+  useEffect(() => {
+    fetchItems();
   }, [isLoaded, getToken]);
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteReminder(getToken, id);
+      fetchItems();
+    } catch (e) {
+      alert("Failed to delete reminder.");
+    }
+  };
+
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10 shrink-0">
         <h1 className="text-xl font-semibold tracking-tight text-white">
           Reminders
         </h1>
@@ -54,18 +68,27 @@ export default function RemindersPage() {
                   <p className="font-medium text-white">{r.task}</p>
                   <p className="text-xs capitalize text-slate-500">{r.status}</p>
                 </div>
-                <time
-                  className="text-sm text-slate-400"
-                  dateTime={r.reminder_time}
-                >
-                  {new Date(r.reminder_time).toLocaleString(undefined, {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </time>
+                <div className="flex items-center gap-3">
+                  <time
+                    className="text-sm text-slate-400"
+                    dateTime={r.reminder_time}
+                  >
+                    {new Date(r.reminder_time).toLocaleString(undefined, {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </time>
+                  <button
+                    onClick={() => handleDelete(r.id)}
+                    className="text-rose-500/70 hover:text-rose-400 transition-colors"
+                    title="Delete reminder"
+                  >
+                    <TrashIcon className="w-5 h-5" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

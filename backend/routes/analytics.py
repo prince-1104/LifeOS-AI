@@ -33,6 +33,18 @@ async def _query_total(user_id: str):
         return await svc.get_total_spent_today(user_id)
 
 
+async def _query_income(user_id: str):
+    async with async_session() as s:
+        svc = DBService(s)
+        return await svc.get_total_income_today(user_id)
+
+
+async def _query_net_balance(user_id: str):
+    async with async_session() as s:
+        svc = DBService(s)
+        return await svc.get_net_balance(user_id)
+
+
 async def _query_daily(user_id: str):
     async with async_session() as s:
         svc = DBService(s)
@@ -56,9 +68,10 @@ async def analytics_dashboard(
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_authenticated_user_id),
 ) -> DashboardResponse:
-    # Run all 4 queries in PARALLEL instead of sequentially
-    total, daily, cats, logs = await asyncio.gather(
+    total, income, balance, daily, cats, logs = await asyncio.gather(
         _query_total(user_id),
+        _query_income(user_id),
+        _query_net_balance(user_id),
         _query_daily(user_id),
         _query_cats(user_id),
         _query_logs(user_id),
@@ -84,6 +97,8 @@ async def analytics_dashboard(
 
     return DashboardResponse(
         total_spent_today=decimal_str(total),
+        total_income_today=decimal_str(income),
+        net_balance_today=decimal_str(balance),
         weekly_series=weekly_series,
         category_breakdown=category_breakdown,
         recent_activity=recent_activity,
@@ -154,3 +169,60 @@ async def list_memories(
         for r in rows
     ]
     return MemoriesListResponse(items=items)
+
+from fastapi import HTTPException
+
+@router.delete("/transactions/{item_id}")
+async def delete_transaction(
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_authenticated_user_id),
+):
+    svc = DBService(db)
+    success = await svc.delete_transaction(item_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return {"success": True}
+
+from pydantic import BaseModel
+from datetime import datetime
+
+class TransactionUpdateDateRequest(BaseModel):
+    event_time: datetime
+
+@router.patch("/transactions/{item_id}")
+async def update_transaction_date(
+    item_id: UUID,
+    req: TransactionUpdateDateRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_authenticated_user_id),
+):
+    svc = DBService(db)
+    success = await svc.update_transaction_date(item_id, user_id, req.event_time)
+    if not success:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return {"success": True}
+
+@router.delete("/reminders/{item_id}")
+async def delete_reminder(
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_authenticated_user_id),
+):
+    svc = DBService(db)
+    success = await svc.delete_reminder(item_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    return {"success": True}
+
+@router.delete("/memories/{item_id}")
+async def delete_memory(
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_authenticated_user_id),
+):
+    svc = DBService(db)
+    success = await svc.delete_memory(item_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    return {"success": True}

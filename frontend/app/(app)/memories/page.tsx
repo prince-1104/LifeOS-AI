@@ -2,25 +2,39 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { getMemories, type MemoryRow } from "@/lib/api";
+import { getMemories, type MemoryRow, deleteMemory } from "@/lib/api";
+import { TrashIcon } from "@heroicons/react/24/outline";
 
 export default function MemoriesPage() {
   const { getToken, isLoaded } = useAuth();
   const [items, setItems] = useState<MemoryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchItems = () => {
     if (!isLoaded) return;
     getMemories(getToken)
       .then(setItems)
       .catch((e) =>
         setError(e instanceof Error ? e.message : "Could not load memories."),
       );
+  };
+
+  useEffect(() => {
+    fetchItems();
   }, [isLoaded, getToken]);
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteMemory(getToken, id);
+      fetchItems();
+    } catch (e) {
+      alert("Failed to delete memory.");
+    }
+  };
+
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10 shrink-0">
         <h1 className="text-xl font-semibold tracking-tight text-white">
           Memories
         </h1>
@@ -62,12 +76,21 @@ export default function MemoriesPage() {
                     ))}
                   </div>
                 ) : null}
-                <time
-                  className="mt-3 block text-xs text-slate-600"
-                  dateTime={m.created_at}
-                >
-                  {new Date(m.created_at).toLocaleString()}
-                </time>
+                <div className="flex items-center justify-between mt-3">
+                  <time
+                    className="block text-xs text-slate-600"
+                    dateTime={m.created_at}
+                  >
+                    {new Date(m.created_at).toLocaleString()}
+                  </time>
+                  <button
+                    onClick={() => handleDelete(m.id)}
+                    className="text-rose-500/70 hover:text-rose-400 transition-colors"
+                    title="Delete memory"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

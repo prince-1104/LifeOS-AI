@@ -50,6 +50,31 @@ class DBService:
         total = result.scalar_one()
         return Decimal(str(total)) if total is not None else Decimal("0")
 
+    async def get_total_income_today(self, user_id: str) -> Decimal:
+        stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == "income",
+            func.date(Transaction.event_time) == func.current_date(),
+        )
+        result = await self.session.execute(stmt)
+        total = result.scalar_one()
+        return Decimal(str(total)) if total is not None else Decimal("0")
+
+    async def get_net_balance(self, user_id: str) -> Decimal:
+        stmt_in = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == "income",
+        )
+        stmt_out = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == "expense",
+        )
+        t_in = (await self.session.execute(stmt_in)).scalar_one()
+        t_out = (await self.session.execute(stmt_out)).scalar_one()
+        in_dec = Decimal(str(t_in)) if t_in is not None else Decimal("0")
+        out_dec = Decimal(str(t_out)) if t_out is not None else Decimal("0")
+        return in_dec - out_dec
+
     async def get_total_spent_last_7_days(self, user_id: str) -> Decimal:
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
         stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
@@ -168,3 +193,43 @@ class DBService:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def update_transaction_date(self, id: UUID, user_id: str, new_date: datetime) -> bool:
+        stmt = select(Transaction).where(Transaction.id == id, Transaction.user_id == user_id)
+        result = await self.session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if not row:
+            return False
+        row.event_time = new_date
+        await self.session.commit()
+        return True
+
+    async def delete_transaction(self, id: UUID, user_id: str) -> bool:
+        stmt = select(Transaction).where(Transaction.id == id)
+        result = await self.session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if not row or row.user_id != user_id:
+            return False
+        await self.session.delete(row)
+        await self.session.commit()
+        return True
+
+    async def delete_reminder(self, id: UUID, user_id: str) -> bool:
+        stmt = select(Reminder).where(Reminder.id == id)
+        result = await self.session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if not row or row.user_id != user_id:
+            return False
+        await self.session.delete(row)
+        await self.session.commit()
+        return True
+
+    async def delete_memory(self, id: UUID, user_id: str) -> bool:
+        stmt = select(Memory).where(Memory.id == id)
+        result = await self.session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if not row or row.user_id != user_id:
+            return False
+        await self.session.delete(row)
+        await self.session.commit()
+        return True

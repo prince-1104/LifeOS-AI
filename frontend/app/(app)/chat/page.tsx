@@ -2,8 +2,8 @@ import { ChatBox } from "@/components/ChatBox";
 
 export default function ChatPage() {
   return (
-    <div className="flex min-h-[calc(100vh-0px)] flex-1 flex-col md:min-h-screen">
-      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10 shrink-0">
         <h1 className="text-xl font-semibold tracking-tight text-white">
           Chat
         </h1>

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -18,6 +19,8 @@ import {
   type ActivityItem,
   type DashboardPayload,
   getDashboard,
+  getTransactions,
+  type TransactionRow,
 } from "@/lib/api";
 
 const PIE_COLORS = [
@@ -83,6 +86,8 @@ function ActivityList({ items }: { items: ActivityItem[] }) {
 export default function DashboardPage() {
   const { getToken, isLoaded } = useAuth();
   const [data, setData] = useState<DashboardPayload | null>(null);
+  const [transactions, setTransactions] = useState<TransactionRow[] | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -91,9 +96,12 @@ export default function DashboardPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getDashboard(getToken)
-      .then((d) => {
-        if (!cancelled) setData(d);
+    Promise.all([getDashboard(getToken), getTransactions(getToken)])
+      .then(([d, txs]) => {
+        if (!cancelled) {
+          setData(d);
+          setTransactions(txs);
+        }
       })
       .catch((e) => {
         if (!cancelled)
@@ -120,8 +128,8 @@ export default function DashboardPage() {
     })) ?? [];
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10 shrink-0">
         <h1 className="text-xl font-semibold tracking-tight text-white">
           Dashboard
         </h1>
@@ -150,16 +158,40 @@ export default function DashboardPage() {
 
         {data && !loading ? (
           <div className="mx-auto flex max-w-6xl flex-col gap-6">
-            <div className="glass-panel rounded-2xl p-6 md:p-8">
-              <p className="text-sm font-medium text-slate-400">
-                Total spending today
-              </p>
-              <p className="mt-2 text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                {formatInrFromString(data.total_spent_today)}
-              </p>
-              <p className="mt-2 text-xs text-slate-600">
-                Expenses recorded for the current calendar day (server time).
-              </p>
+            <div className="grid gap-6 md:grid-cols-3">
+              <div className="glass-panel rounded-2xl p-6">
+                <p className="text-sm font-medium text-slate-400">
+                  Total Income Today
+                </p>
+                <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-400 lg:text-4xl">
+                  {formatInrFromString(data.total_income_today)}
+                </p>
+                <p className="mt-2 text-xs text-slate-600">
+                  Income recorded for today.
+                </p>
+              </div>
+              <div className="glass-panel rounded-2xl p-6">
+                <p className="text-sm font-medium text-slate-400">
+                  Total Spending Today
+                </p>
+                <p className="mt-2 text-3xl font-semibold tracking-tight text-rose-400 lg:text-4xl">
+                  {formatInrFromString(data.total_spent_today)}
+                </p>
+                <p className="mt-2 text-xs text-slate-600">
+                  Expenses recorded for today.
+                </p>
+              </div>
+              <div className="glass-panel rounded-2xl p-6">
+                <p className="text-sm font-medium text-slate-400">
+                  Overall Net Balance
+                </p>
+                <p className={`mt-2 text-3xl font-semibold tracking-tight lg:text-4xl ${Number(data.net_balance_today) >= 0 ? 'text-indigo-400' : 'text-rose-500'}`}>
+                  {Number(data.net_balance_today) > 0 ? "+" : ""}{formatInrFromString(data.net_balance_today)}
+                </p>
+                <p className="mt-2 text-xs text-slate-600">
+                  Total income vs total expense.
+                </p>
+              </div>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
@@ -232,11 +264,14 @@ export default function DashboardPage() {
                           innerRadius={52}
                           outerRadius={80}
                           paddingAngle={2}
+                          className="cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={(sliceData) => setSelectedCategory(sliceData.name)}
                         >
                           {pieData.map((_, i) => (
                             <Cell
                               key={i}
                               fill={PIE_COLORS[i % PIE_COLORS.length]}
+                              style={{ outline: "none" }}
                             />
                           ))}
                         </Pie>
@@ -249,6 +284,12 @@ export default function DashboardPage() {
                           formatter={(value) =>
                             formatInrFromString(String(value ?? ""))
                           }
+                        />
+                        <Legend 
+                          verticalAlign="middle" 
+                          align="right"
+                          layout="vertical"
+                          wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }}
                         />
                       </PieChart>
                     </ResponsiveContainer>
@@ -263,6 +304,54 @@ export default function DashboardPage() {
               </h2>
               <ActivityList items={data.recent_activity} />
             </div>
+
+            {selectedCategory && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                <div className="glass-panel w-full max-w-lg rounded-2xl p-6 relative flex flex-col max-h-[80vh] shadow-xl shadow-black/40">
+                  <button 
+                    className="absolute top-5 right-5 text-slate-400 hover:text-white"
+                    onClick={() => setSelectedCategory(null)}
+                    title="Close"
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                  <h3 className="text-xl font-semibold text-white mb-6 capitalize">
+                    {selectedCategory} Activity
+                  </h3>
+                  <div className="flex-1 overflow-y-auto pr-2">
+                    <ul className="divide-y divide-white/[0.06]">
+                      {transactions?.filter((t) => t.category === selectedCategory).length === 0 ? (
+                        <p className="text-slate-400 text-sm py-4">No recent transactions found for {selectedCategory}.</p>
+                      ) : (
+                        transactions?.filter((t) => t.category === selectedCategory).map((t) => (
+                          <li key={t.id} className="py-4 flex justify-between items-center group">
+                            <div>
+                              <p className="text-slate-200 font-medium capitalize">
+                                {t.type === 'expense' ? 'Spent on ' : 'Received from '}
+                                {t.note || t.source || t.category}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {new Date(t.event_time).toLocaleString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                })}
+                              </p>
+                            </div>
+                            <div className={`font-semibold ${t.type === 'expense' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                              {t.type === 'expense' ? '-' : '+'}{formatInrFromString(t.amount)}
+                            </div>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       </div>

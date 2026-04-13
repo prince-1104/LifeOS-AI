@@ -2,7 +2,14 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { getTransactions, type TransactionRow } from "@/lib/api";
+import { getTransactions, type TransactionRow, deleteTransaction, updateTransactionDate } from "@/lib/api";
+import { TrashIcon } from "@heroicons/react/24/outline";
+
+function getLocalDatetime(dateString: string) {
+  const d = new Date(dateString);
+  const tzoffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzoffset).toISOString().slice(0, 16);
+}
 
 function formatInr(amount: string) {
   const n = Number(amount);
@@ -19,18 +26,42 @@ export default function FinancePage() {
   const [items, setItems] = useState<TransactionRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchItems = () => {
     if (!isLoaded) return;
     getTransactions(getToken)
       .then(setItems)
       .catch((e) =>
         setError(e instanceof Error ? e.message : "Could not load transactions."),
       );
+  };
+
+  useEffect(() => {
+    fetchItems();
   }, [isLoaded, getToken]);
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteTransaction(getToken, id);
+      fetchItems();
+    } catch (e) {
+      alert("Failed to delete transaction.");
+    }
+  };
+
+  const handleDateChange = async (id: string, newDateLocalStr: string) => {
+    try {
+      if (!newDateLocalStr) return;
+      const isoDate = new Date(newDateLocalStr).toISOString();
+      await updateTransactionDate(getToken, id, isoDate);
+      fetchItems();
+    } catch (e) {
+      alert("Failed to update date.");
+    }
+  };
+
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10 shrink-0">
         <h1 className="text-xl font-semibold tracking-tight text-white">
           Finance
         </h1>
@@ -62,18 +93,24 @@ export default function FinancePage() {
                   <th className="px-4 py-3 font-medium">Type</th>
                   <th className="px-4 py-3 font-medium">Amount</th>
                   <th className="px-4 py-3 font-medium">Category</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.06]">
                 {items.map((t) => (
                   <tr key={t.id} className="hover:bg-white/[0.02]">
                     <td className="whitespace-nowrap px-4 py-3 text-slate-400">
-                      {new Date(t.event_time).toLocaleString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      <input
+                        type="datetime-local"
+                        className="bg-transparent text-slate-300 dark:[color-scheme:dark] outline-none border-b border-transparent hover:border-slate-500 focus:border-indigo-500 transition-colors py-1 cursor-pointer"
+                        defaultValue={getLocalDatetime(t.event_time)}
+                        onBlur={(e) => {
+                           const original = getLocalDatetime(t.event_time);
+                           if (e.target.value !== original) {
+                             handleDateChange(t.id, e.target.value);
+                           }
+                        }}
+                      />
                     </td>
                     <td className="px-4 py-3 capitalize text-slate-300">
                       {t.type}
@@ -89,6 +126,15 @@ export default function FinancePage() {
                     </td>
                     <td className="px-4 py-3 capitalize text-slate-500">
                       {t.category ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleDelete(t.id)}
+                        className="text-rose-500 hover:text-rose-400 transition-colors"
+                        title="Delete transaction"
+                      >
+                        <TrashIcon className="w-4 h-4 ml-auto" />
+                      </button>
                     </td>
                   </tr>
                 ))}

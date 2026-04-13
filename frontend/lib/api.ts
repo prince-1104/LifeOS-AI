@@ -85,6 +85,8 @@ export type ActivityItem = {
 export type DashboardPayload = {
   currency: string;
   total_spent_today: string;
+  total_income_today: string;
+  net_balance_today: string;
   weekly_series: WeeklySeriesPoint[];
   category_breakdown: CategorySlice[];
   recent_activity: ActivityItem[];
@@ -147,4 +149,32 @@ export async function getMemories(getToken: GetToken): Promise<MemoryRow[]> {
   if (!res.ok) throw new Error(await res.text());
   const data = (await res.json()) as { items: MemoryRow[] };
   return data.items;
+}
+
+export async function deleteReminder(getToken: GetToken, id: string): Promise<void> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${base()}/reminders/${id}`, { method: "DELETE", headers });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function deleteTransaction(getToken: GetToken, id: string): Promise<void> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${base()}/transactions/${id}`, { method: "DELETE", headers });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function updateTransactionDate(getToken: GetToken, id: string, event_time: string): Promise<void> {
+  const headers = await jsonAuth(getToken);
+  const res = await fetch(`${base()}/transactions/${id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ event_time })
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function deleteMemory(getToken: GetToken, id: string): Promise<void> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${base()}/memories/${id}`, { method: "DELETE", headers });
+  if (!res.ok) throw new Error(await res.text());
 }

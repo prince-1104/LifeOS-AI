@@ -15,6 +15,7 @@ import {
   type ChatRow,
 } from "@/lib/chat-history";
 import { Message, type AssistantPayload } from "./Message";
+import { TrashIcon } from "@heroicons/react/24/outline";
 
 function toAssistantPayload(res: ProcessResponse): AssistantPayload {
   return {
@@ -56,9 +57,9 @@ export function ChatBox() {
     saveChatHistory(session.userId, session.rows);
   }, [session]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [session.rows, loading]);
+  const handleDeleteRow = useCallback((id: string) => {
+    setSession((s) => ({ ...s, rows: s.rows.filter((r) => r.id !== id) }));
+  }, []);
 
   const send = useCallback(async () => {
     const trimmed = input.trim();
@@ -143,13 +144,13 @@ export function ChatBox() {
               </p>
             </div>
           ) : null}
-          {rows.map((row) =>
-            row.role === "user" ? (
-              <Message key={row.id} role="user" text={row.text} />
-            ) : (
-              <Message key={row.id} role="assistant" assistant={row.assistant} />
-            ),
-          )}
+          {rows.map((row) => (
+            <ChatRowItem
+              key={row.id}
+              row={row}
+              onDelete={() => handleDeleteRow(row.id)}
+            />
+          ))}
           {loading ? (
             <div className="flex justify-start">
               <div className="glass-panel flex items-center gap-1.5 rounded-2xl px-4 py-3">
@@ -202,6 +203,53 @@ export function ChatBox() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ChatRowItem({ row, onDelete }: { row: ChatRow; onDelete: () => void }) {
+  const [showDelete, setShowDelete] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleStart = () => {
+    timerRef.current = setTimeout(() => {
+      setShowDelete(true);
+    }, 500);
+  };
+
+  const handleEnd = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  return (
+    <div
+      className="relative"
+      onDoubleClick={() => setShowDelete((p) => !p)}
+      onTouchStart={handleStart}
+      onTouchEnd={handleEnd}
+      onTouchMove={handleEnd}
+    >
+      {showDelete ? (
+        <div
+          className={`absolute -top-3 z-10 flex items-center justify-center ${
+            row.role === "user" ? "right-1" : "left-1"
+          }`}
+        >
+          <button
+            onClick={onDelete}
+            className="rounded-full bg-rose-500 p-2 text-white shadow-lg shadow-rose-900/50 transition hover:bg-rose-400"
+            title="Delete message"
+          >
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </div>
+      ) : null}
+
+      {row.role === "user" ? (
+        <Message role="user" text={row.text} />
+      ) : (
+        <Message role="assistant" assistant={row.assistant} />
+      )}
     </div>
   );
 }
