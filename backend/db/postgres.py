@@ -46,3 +46,17 @@ async def init_db():
                 "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS latency_ms_total NUMERIC(12,3)"
             )
         )
+        # ── User profile columns (Clerk sync) ────────────────────────
+        for col_def in [
+            "first_name VARCHAR(255)",
+            "last_name VARCHAR(255)",
+            "username VARCHAR(255)",
+            "phone VARCHAR(50)",
+            "image_url TEXT",
+            "last_sign_in_at TIMESTAMPTZ",
+            "updated_at TIMESTAMPTZ DEFAULT NOW()",
+        ]:
+            await conn.execute(
+                text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_def}")
+            )
+

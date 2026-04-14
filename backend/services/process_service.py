@@ -23,6 +23,7 @@ from services.log_service import (
     orch_to_json,
 )
 from services.rate_limit_service import check_rate_limit
+from services.usage_service import log_token_usage
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,7 @@ async def process_input(
 
     t0 = time.perf_counter()
     try:
-        orch = await classify_llm(input_text)
+        orch, orch_usage = await classify_llm(input_text)
         orch_ms = (time.perf_counter() - t0) * 1000.0
         try:
             await log_orchestrator_step(
@@ -137,6 +138,23 @@ async def process_input(
             )
         except Exception:
             logger.exception("orchestrator_logs insert failed")
+
+        # Log orchestrator token usage
+        if orch_usage:
+            try:
+                await log_token_usage(
+                    db,
+                    request_id=request_id,
+                    user_id=user_id,
+                    model=orch_usage.get("model", "gpt-4o-mini"),
+                    prompt_tokens=orch_usage.get("prompt_tokens", 0),
+                    completion_tokens=orch_usage.get("completion_tokens", 0),
+                    total_tokens=orch_usage.get("total_tokens", 0),
+                    endpoint="/process:orchestrator",
+                    latency_ms=orch_ms,
+                )
+            except Exception:
+                logger.exception("usage_log insert failed for orchestrator")
     except Exception as exc:
         orch_ms = (time.perf_counter() - t0) * 1000.0
         try:

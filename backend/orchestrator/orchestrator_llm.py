@@ -87,7 +87,8 @@ Output:
 """
 
 
-async def classify_llm(user_input: str) -> OrchestratorOutput:
+async def classify_llm(user_input: str) -> tuple[OrchestratorOutput, dict]:
+    """Classify user input and return (parsed_output, token_usage_dict)."""
     response = await _client.chat.completions.create(
         model=settings.ORCHESTRATOR_MODEL,
         messages=[
@@ -97,12 +98,24 @@ async def classify_llm(user_input: str) -> OrchestratorOutput:
         temperature=0,
         response_format={"type": "json_object"},
     )
+
+    # Extract token usage from OpenAI response
+    usage = {}
+    if response.usage:
+        usage = {
+            "prompt_tokens": response.usage.prompt_tokens or 0,
+            "completion_tokens": response.usage.completion_tokens or 0,
+            "total_tokens": response.usage.total_tokens or 0,
+            "model": settings.ORCHESTRATOR_MODEL,
+        }
+
     raw = response.choices[0].message.content
     if not raw:
-        return OrchestratorOutput(type="unknown")
+        return OrchestratorOutput(type="unknown"), usage
 
     try:
         data = json.loads(raw)
-        return OrchestratorOutput.model_validate(data)
+        return OrchestratorOutput.model_validate(data), usage
     except (json.JSONDecodeError, ValidationError, ValueError):
-        return OrchestratorOutput(type="unknown")
+        return OrchestratorOutput(type="unknown"), usage
+

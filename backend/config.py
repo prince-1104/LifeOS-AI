@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     # Optional; used by Clerk Backend API if you add server-side Clerk calls.
     CLERK_SECRET_KEY: str = ""
 
+    # ── Admin panel ──────────────────────────────────────────────────
+    ADMIN_EMAIL: str = "princeprasad.dr@gmail.com"
+    ADMIN_PASSWORD: str = "admin@123"
+    ADMIN_SESSION_EXPIRY_HOURS: int = 24
+
+    # Cost per 1K tokens (USD)
+    MODEL_COST_PER_1K: float = 0.002
+
 
 @lru_cache
 def get_settings() -> Settings:
