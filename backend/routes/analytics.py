@@ -27,22 +27,22 @@ from services.db_service import DBService
 router = APIRouter(tags=["analytics"])
 
 
-async def _query_total(user_id: str):
+async def _query_total(user_id: str, period: str):
     async with async_session() as s:
         svc = DBService(s)
-        return await svc.get_total_spent_today(user_id)
+        return await svc.get_total_spent(user_id, period)
 
 
-async def _query_income(user_id: str):
+async def _query_income(user_id: str, period: str):
     async with async_session() as s:
         svc = DBService(s)
-        return await svc.get_total_income_today(user_id)
+        return await svc.get_total_income(user_id, period)
 
 
-async def _query_net_balance(user_id: str):
+async def _query_net_balance(user_id: str, period: str):
     async with async_session() as s:
         svc = DBService(s)
-        return await svc.get_net_balance(user_id)
+        return await svc.get_net_balance(user_id, period)
 
 
 async def _query_daily(user_id: str):
@@ -51,10 +51,10 @@ async def _query_daily(user_id: str):
         return await svc.get_daily_expense_totals_last_7_days(user_id)
 
 
-async def _query_cats(user_id: str):
+async def _query_cats(user_id: str, period: str):
     async with async_session() as s:
         svc = DBService(s)
-        return await svc.get_spending_by_category(user_id, limit=8)
+        return await svc.get_spending_by_category(user_id, limit=8, period=period)
 
 
 async def _query_logs(user_id: str):
@@ -65,15 +65,17 @@ async def _query_logs(user_id: str):
 
 @router.get("/analytics/dashboard", response_model=DashboardResponse)
 async def analytics_dashboard(
+    period: str = "day",
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_authenticated_user_id),
 ) -> DashboardResponse:
+    cat_period = "month" if period == "day" else period
     total, income, balance, daily, cats, logs = await asyncio.gather(
-        _query_total(user_id),
-        _query_income(user_id),
-        _query_net_balance(user_id),
+        _query_total(user_id, period),
+        _query_income(user_id, period),
+        _query_net_balance(user_id, period),
         _query_daily(user_id),
-        _query_cats(user_id),
+        _query_cats(user_id, cat_period),
         _query_logs(user_id),
     )
 
@@ -96,9 +98,9 @@ async def analytics_dashboard(
     ]
 
     return DashboardResponse(
-        total_spent_today=decimal_str(total),
-        total_income_today=decimal_str(income),
-        net_balance_today=decimal_str(balance),
+        total_spent=decimal_str(total),
+        total_income=decimal_str(income),
+        net_balance=decimal_str(balance),
         weekly_series=weekly_series,
         category_breakdown=category_breakdown,
         recent_activity=recent_activity,

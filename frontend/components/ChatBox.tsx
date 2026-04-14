@@ -7,12 +7,17 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  Fragment,
 } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { processInput, type ProcessResponse } from "@/lib/api";
 import {
   loadChatHistory,
   saveChatHistory,
   type ChatRow,
+  isSameDay,
+  formatDateHeader,
+  generateDateId,
 } from "@/lib/chat-history";
 import { Message, type AssistantPayload } from "./Message";
 import { TrashIcon } from "@heroicons/react/24/outline";
@@ -29,6 +34,8 @@ function toAssistantPayload(res: ProcessResponse): AssistantPayload {
 type ChatSession = { userId: string; rows: ChatRow[] };
 
 export function ChatBox() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { getToken } = useAuth();
   const { user, isLoaded: userLoaded } = useUser();
   const [session, setSession] = useState<ChatSession>({
@@ -69,10 +76,16 @@ export function ChatBox() {
       id: crypto.randomUUID(),
       role: "user",
       text: trimmed,
+      timestamp: Date.now(),
     };
     setSession((s) => ({ ...s, rows: [...s.rows, userMsg] }));
     setInput("");
     setLoading(true);
+
+    const todayId = generateDateId(Date.now());
+    if (searchParams?.get("date") !== todayId) {
+      router.push(`/chat?date=${todayId}`);
+    }
 
     try {
       const tz =
@@ -87,6 +100,7 @@ export function ChatBox() {
         id: crypto.randomUUID(),
         role: "assistant",
         assistant: toAssistantPayload(res),
+        timestamp: Date.now(),
       };
       setSession((s) => ({ ...s, rows: [...s.rows, assistantRow] }));
     } catch (e) {
@@ -100,6 +114,7 @@ export function ChatBox() {
           response: msg,
           data: null,
         },
+        timestamp: Date.now(),
       };
       setSession((s) => ({ ...s, rows: [...s.rows, errRow] }));
     } finally {
@@ -108,6 +123,8 @@ export function ChatBox() {
   }, [input, session.userId, loading, userLoaded, getToken]);
 
   const { rows, userId } = session;
+  const activeDateId = searchParams?.get("date") || generateDateId(Date.now());
+  const visibleRows = rows.filter((r) => generateDateId(r.timestamp) === activeDateId);
 
   if (!userLoaded) {
     return (
@@ -133,24 +150,53 @@ export function ChatBox() {
         aria-relevant="additions"
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-          {rows.length === 0 ? (
+          {visibleRows.length === 0 ? (
             <div className="glass-panel mt-8 rounded-2xl px-6 py-8 text-center">
-              <p className="text-lg font-medium tracking-tight text-white">
-                Welcome to LifeOS AI
-              </p>
-              <p className="mt-2 text-sm text-zinc-400">
-                Track spending, set reminders, and capture memories — then ask
-                anything about your day.
-              </p>
+              {activeDateId === generateDateId(Date.now()) ? (
+                <>
+                  <p className="text-lg font-medium tracking-tight text-white">
+                    Welcome to LifeOS AI
+                  </p>
+                  <p className="mt-2 text-sm text-zinc-400">
+                    Track spending, set reminders, and capture memories — then ask
+                    anything about your day.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-medium tracking-tight text-white">
+                    No chats found
+                  </p>
+                  <p className="mt-2 text-sm text-zinc-400">
+                    You have no history for this date.
+                  </p>
+                </>
+              )}
             </div>
           ) : null}
-          {rows.map((row) => (
-            <ChatRowItem
-              key={row.id}
-              row={row}
-              onDelete={() => handleDeleteRow(row.id)}
-            />
-          ))}
+          {visibleRows.map((row, index) => {
+            const prev = visibleRows[index - 1];
+            const showDivider = !prev || !isSameDay(row.timestamp, prev.timestamp);
+
+            return (
+              <Fragment key={row.id}>
+                {showDivider ? (
+                  <div
+                    id={generateDateId(row.timestamp)}
+                    className="my-2 flex items-center justify-center scroll-mt-24"
+                  >
+                    <div className="rounded-full bg-white/5 px-4 py-1 text-xs font-medium text-zinc-400">
+                      {formatDateHeader(row.timestamp)}
+                    </div>
+                  </div>
+                ) : null}
+                <ChatRowItem
+                  row={row}
+                  onDelete={() => handleDeleteRow(row.id)}
+                />
+              </Fragment>
+            );
+          })}
           {loading ? (
             <div className="flex justify-start">
               <div className="glass-panel flex items-center gap-1.5 rounded-2xl px-4 py-3">
@@ -246,9 +292,9 @@ function ChatRowItem({ row, onDelete }: { row: ChatRow; onDelete: () => void }) 
       ) : null}
 
       {row.role === "user" ? (
-        <Message role="user" text={row.text} />
+        <Message role="user" text={row.text} timestamp={row.timestamp} />
       ) : (
-        <Message role="assistant" assistant={row.assistant} />
+        <Message role="assistant" assistant={row.assistant} timestamp={row.timestamp} />
       )}
     </div>
   );
@@ -286,3 +332,4 @@ function MicIcon() {
     </svg>
   );
 }
+

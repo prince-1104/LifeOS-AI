@@ -27,9 +27,9 @@ class ActivityItem(BaseModel):
 
 class DashboardResponse(BaseModel):
     currency: str = "INR"
-    total_spent_today: str
-    total_income_today: str
-    net_balance_today: str
+    total_spent: str
+    total_income: str
+    net_balance: str
     weekly_series: list[WeeklySeriesPoint]
     category_breakdown: list[CategorySlice]
     recent_activity: list[ActivityItem]

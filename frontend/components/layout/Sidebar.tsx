@@ -1,8 +1,11 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { UserButton, useUser, useClerk } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { loadChatHistory, formatDateHeader, isSameDay, generateDateId } from "@/lib/chat-history";
+
 
 const nav = [
   { href: "/chat", label: "Chat" },
@@ -23,6 +26,33 @@ export function Sidebar({
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
+
+  const [historyDates, setHistoryDates] = useState<{label: string, id: string}[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    function loadAndSetDates() {
+      const rows = loadChatHistory(user!.id);
+      const uniqueDates: {label: string, id: string}[] = [];
+      let lastTimestamp: number | undefined = -1;
+
+      for (const row of rows) {
+        if (lastTimestamp === -1 || !isSameDay(row.timestamp, lastTimestamp)) {
+          uniqueDates.push({
+            label: formatDateHeader(row.timestamp),
+            id: generateDateId(row.timestamp)
+          });
+          lastTimestamp = row.timestamp;
+        }
+      }
+      setHistoryDates(uniqueDates.reverse());
+    }
+    
+    loadAndSetDates();
+    window.addEventListener("chat-history-updated", loadAndSetDates);
+    return () => window.removeEventListener("chat-history-updated", loadAndSetDates);
+  }, [user?.id]);
 
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
   const label =
@@ -48,28 +78,50 @@ export function Sidebar({
         </Link>
         <p className="mt-1 text-xs text-zinc-500">Your day, understood.</p>
       </div>
-      <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
-        {nav.map((item) => {
-          const active =
-            item.href === "/chat"
-              ? pathname === "/chat"
-              : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onCloseMobile}
-              className={[
-                "rounded-xl px-3 py-2.5 text-sm font-medium transition",
-                active
-                  ? "bg-zinc-800/90 text-white"
-                  : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200",
-              ].join(" ")}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
+        <div className="flex flex-col gap-0.5">
+          {nav.map((item) => {
+            const active =
+              item.href === "/chat"
+                ? pathname === "/chat"
+                : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onCloseMobile}
+                className={[
+                  "rounded-xl px-3 py-2.5 text-sm font-medium transition",
+                  active
+                    ? "bg-zinc-800/90 text-white"
+                    : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200",
+                ].join(" ")}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+
+        {historyDates.length > 0 && (
+          <div className="mt-8">
+            <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              Chat History
+            </h3>
+            <div className="flex flex-col gap-0.5">
+              {historyDates.map((date) => (
+                <Link
+                  key={date.id}
+                  href={`/chat?date=${date.id}`}
+                  onClick={onCloseMobile}
+                  className="block truncate rounded-xl px-3 py-2 text-[13px] font-medium text-zinc-400 transition hover:bg-white/[0.04] hover:text-zinc-200"
+                >
+                  {date.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
       <div className="border-t border-white/[0.06] p-4">
         <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">

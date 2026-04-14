@@ -84,9 +84,9 @@ export type ActivityItem = {
 
 export type DashboardPayload = {
   currency: string;
-  total_spent_today: string;
-  total_income_today: string;
-  net_balance_today: string;
+  total_spent: string;
+  total_income: string;
+  net_balance: string;
   weekly_series: WeeklySeriesPoint[];
   category_breakdown: CategorySlice[];
   recent_activity: ActivityItem[];
@@ -94,9 +94,10 @@ export type DashboardPayload = {
 
 export async function getDashboard(
   getToken: GetToken,
+  period: string = "day"
 ): Promise<DashboardPayload> {
   const headers = await bearerAuth(getToken);
-  const res = await fetch(`${base()}/analytics/dashboard`, { headers });
+  const res = await fetch(`${base()}/analytics/dashboard?period=${period}`, { headers });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<DashboardPayload>;
 }

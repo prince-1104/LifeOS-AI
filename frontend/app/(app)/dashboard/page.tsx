@@ -85,6 +85,7 @@ function ActivityList({ items }: { items: ActivityItem[] }) {
 
 export default function DashboardPage() {
   const { getToken, isLoaded } = useAuth();
+  const [period, setPeriod] = useState("month");
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [transactions, setTransactions] = useState<TransactionRow[] | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -96,7 +97,7 @@ export default function DashboardPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([getDashboard(getToken), getTransactions(getToken)])
+    Promise.all([getDashboard(getToken, period), getTransactions(getToken)])
       .then(([d, txs]) => {
         if (!cancelled) {
           setData(d);
@@ -113,13 +114,16 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, getToken]);
+  }, [isLoaded, getToken, period]);
 
   const lineData =
-    data?.weekly_series.map((p) => ({
-      day: p.date.slice(5),
-      amount: Number(p.amount),
-    })) ?? [];
+    data?.weekly_series.map((p) => {
+      const [year, month, day] = p.date.split("-");
+      return {
+        day: `${day}-${month}`,
+        amount: Number(p.amount),
+      };
+    }) ?? [];
 
   const pieData =
     data?.category_breakdown.map((c) => ({
@@ -129,13 +133,25 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10 shrink-0">
-        <h1 className="text-xl font-semibold tracking-tight text-white">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Spending and activity at a glance.
-        </p>
+      <div className="border-b border-white/[0.06] px-6 py-5 md:px-10 shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-white">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Spending and activity at a glance.
+          </p>
+        </div>
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value)}
+          className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-zinc-300 outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option className="bg-zinc-900 text-slate-200" value="day">Today</option>
+          <option className="bg-zinc-900 text-slate-200" value="week">This Week</option>
+          <option className="bg-zinc-900 text-slate-200" value="month">This Month</option>
+          <option className="bg-zinc-900 text-slate-200" value="year">This Year</option>
+        </select>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-6 md:px-10">
@@ -161,32 +177,32 @@ export default function DashboardPage() {
             <div className="grid gap-6 md:grid-cols-3">
               <div className="glass-panel rounded-2xl p-6">
                 <p className="text-sm font-medium text-slate-400">
-                  Total Income Today
+                  Total Income {period === 'day' ? 'Today' : period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'This Year'}
                 </p>
                 <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-400 lg:text-4xl">
-                  {formatInrFromString(data.total_income_today)}
+                  {formatInrFromString(data.total_income)}
                 </p>
                 <p className="mt-2 text-xs text-slate-600">
-                  Income recorded for today.
+                  Income recorded for {period === 'day' ? 'today' : period === 'week' ? 'this week' : period === 'month' ? 'this month' : 'this year'}.
                 </p>
               </div>
               <div className="glass-panel rounded-2xl p-6">
                 <p className="text-sm font-medium text-slate-400">
-                  Total Spending Today
+                  Total Spending {period === 'day' ? 'Today' : period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'This Year'}
                 </p>
                 <p className="mt-2 text-3xl font-semibold tracking-tight text-rose-400 lg:text-4xl">
-                  {formatInrFromString(data.total_spent_today)}
+                  {formatInrFromString(data.total_spent)}
                 </p>
                 <p className="mt-2 text-xs text-slate-600">
-                  Expenses recorded for today.
+                  Expenses recorded for {period === 'day' ? 'today' : period === 'week' ? 'this week' : period === 'month' ? 'this month' : 'this year'}.
                 </p>
               </div>
               <div className="glass-panel rounded-2xl p-6">
                 <p className="text-sm font-medium text-slate-400">
                   Overall Net Balance
                 </p>
-                <p className={`mt-2 text-3xl font-semibold tracking-tight lg:text-4xl ${Number(data.net_balance_today) >= 0 ? 'text-indigo-400' : 'text-rose-500'}`}>
-                  {Number(data.net_balance_today) > 0 ? "+" : ""}{formatInrFromString(data.net_balance_today)}
+                <p className={`mt-2 text-3xl font-semibold tracking-tight lg:text-4xl ${Number(data.net_balance) >= 0 ? 'text-indigo-400' : 'text-rose-500'}`}>
+                  {Number(data.net_balance) > 0 ? "+" : ""}{formatInrFromString(data.net_balance)}
                 </p>
                 <p className="mt-2 text-xs text-slate-600">
                   Total income vs total expense.
@@ -245,7 +261,7 @@ export default function DashboardPage() {
 
               <div className="glass-panel rounded-2xl p-4 md:p-6">
                 <h2 className="mb-4 text-sm font-medium text-slate-300">
-                  By category
+                  By category {period === 'day' ? '(This Month)' : ''}
                 </h2>
                 {pieData.length === 0 ? (
                   <p className="py-12 text-center text-sm text-slate-500">
@@ -265,7 +281,7 @@ export default function DashboardPage() {
                           outerRadius={80}
                           paddingAngle={2}
                           className="cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={(sliceData) => setSelectedCategory(sliceData.name)}
+                          onClick={(sliceData) => setSelectedCategory(sliceData.name ?? null)}
                         >
                           {pieData.map((_, i) => (
                             <Cell

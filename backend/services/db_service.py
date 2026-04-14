@@ -40,34 +40,48 @@ class DBService:
         await self.session.refresh(row)
         return row.id
 
-    async def get_total_spent_today(self, user_id: str) -> Decimal:
+    def _get_period_filter(self, period: str):
+        now = datetime.now(timezone.utc)
+        if period == "day":
+            return func.date(Transaction.event_time) == func.current_date()
+        elif period == "week":
+            return Transaction.event_time >= now - timedelta(days=7)
+        elif period == "month":
+            return Transaction.event_time >= now - timedelta(days=30)
+        elif period == "year":
+            return Transaction.event_time >= now - timedelta(days=365)
+        return True
+
+    async def get_total_spent(self, user_id: str, period: str = "day") -> Decimal:
         stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
             Transaction.user_id == user_id,
             Transaction.type == "expense",
-            func.date(Transaction.event_time) == func.current_date(),
+            self._get_period_filter(period),
         )
         result = await self.session.execute(stmt)
         total = result.scalar_one()
         return Decimal(str(total)) if total is not None else Decimal("0")
 
-    async def get_total_income_today(self, user_id: str) -> Decimal:
+    async def get_total_income(self, user_id: str, period: str = "day") -> Decimal:
         stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
             Transaction.user_id == user_id,
             Transaction.type == "income",
-            func.date(Transaction.event_time) == func.current_date(),
+            self._get_period_filter(period),
         )
         result = await self.session.execute(stmt)
         total = result.scalar_one()
         return Decimal(str(total)) if total is not None else Decimal("0")
 
-    async def get_net_balance(self, user_id: str) -> Decimal:
+    async def get_net_balance(self, user_id: str, period: str = "day") -> Decimal:
         stmt_in = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
             Transaction.user_id == user_id,
             Transaction.type == "income",
+            self._get_period_filter(period),
         )
         stmt_out = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
             Transaction.user_id == user_id,
             Transaction.type == "expense",
+            self._get_period_filter(period),
         )
         t_in = (await self.session.execute(stmt_in)).scalar_one()
         t_out = (await self.session.execute(stmt_out)).scalar_one()
@@ -87,7 +101,7 @@ class DBService:
         return Decimal(str(total)) if total is not None else Decimal("0")
 
     async def get_spending_by_category(
-        self, user_id: str, limit: int = 10
+        self, user_id: str, limit: int = 10, period: str = "day"
     ) -> list[tuple[str, Decimal]]:
         """Sum expenses by category; NULL category becomes 'uncategorized'."""
         cat = func.coalesce(Transaction.category, "uncategorized")
@@ -96,6 +110,7 @@ class DBService:
             .where(
                 Transaction.user_id == user_id,
                 Transaction.type == "expense",
+                self._get_period_filter(period),
             )
             .group_by(cat)
             .order_by(func.sum(Transaction.amount).desc())
