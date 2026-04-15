@@ -84,6 +84,30 @@ Output:
   "task": "go gym",
   "time": "19:00"
 }
+
+Input: "remind me after 2 minutes to switch off light"
+Output:
+{
+  "type": "reminder",
+  "task": "switch off light",
+  "time": "2 minutes"
+}
+
+Input: "remind me in 1 hour to call mom"
+Output:
+{
+  "type": "reminder",
+  "task": "call mom",
+  "time": "1 hour"
+}
+
+Input: "set a reminder for tomorrow 6:30am to exercise"
+Output:
+{
+  "type": "reminder",
+  "task": "exercise",
+  "time": "tomorrow 6:30am"
+}
 """
 
 

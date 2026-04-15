@@ -324,3 +324,9 @@ Request: GET /transactions - Time: 1.1450s
 Request: GET /analytics/dashboard - Time: 3.5681s
 Request: GET /transactions - Time: 1.3039s
 Request: GET /transactions - Time: 0.9509s
+Request: GET /reminders - Time: 1.3363s
+Request: GET /reminders - Time: 3.1039s
+Request: POST /process - Time: 10.5138s
+Request: POST /process - Time: 12.3754s
+Request: GET /reminders - Time: 0.9063s
+Request: GET /reminders - Time: 2.7479s

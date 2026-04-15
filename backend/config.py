@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # Cost per 1K tokens (USD)
     MODEL_COST_PER_1K: float = 0.002
 
+    # ── OneSignal push notifications ─────────────────────────────────
+    ONESIGNAL_APP_ID: str = ""
+    ONESIGNAL_REST_API_KEY: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

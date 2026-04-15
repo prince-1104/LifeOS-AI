@@ -1,4 +1,4 @@
-"""Parse orchestrator time strings into UTC datetimes (wall-clock + roll-forward if past)."""
+"""Parse orchestrator time strings into UTC datetimes (wall-clock + relative durations)."""
 
 import re
 from datetime import date, datetime, time, timedelta, timezone
@@ -47,6 +47,62 @@ def _parse_hour_minute(s: str) -> tuple[int, int] | None:
     return None
 
 
+def _parse_relative_duration(s: str) -> timedelta | None:
+    """Parse relative duration strings into timedelta.
+
+    Supports formats like:
+      - "2 minutes", "5 min", "30m", "+10min"
+      - "1 hour", "2 hours", "1.5h", "+2hr"
+      - "30 seconds", "45 sec", "90s"
+      - "1 hour 30 minutes", "1h 30m", "1h30m"
+      - "+2m", "+1h", "+30s"
+      - "in 5 minutes", "after 10 min"
+    """
+    s = s.strip().lower()
+
+    # Strip common prefixes
+    s = re.sub(r"^(in|after|for)\s+", "", s)
+    s = s.lstrip("+").strip()
+
+    total_seconds = 0
+    found = False
+
+    # Match patterns like "1 hour 30 minutes" or "2h30m" or "5 min"
+    # Hours
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b", s)
+    if m:
+        total_seconds += float(m.group(1)) * 3600
+        found = True
+
+    # Minutes
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:minutes?|mins?|m)\b", s)
+    if m:
+        total_seconds += float(m.group(1)) * 60
+        found = True
+
+    # Seconds
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b", s)
+    if m:
+        total_seconds += float(m.group(1))
+        found = True
+
+    # Days
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:days?|d)\b", s)
+    if m:
+        total_seconds += float(m.group(1)) * 86400
+        found = True
+
+    if found and total_seconds > 0:
+        return timedelta(seconds=total_seconds)
+
+    # Try bare number — if just a number, assume minutes
+    m = re.match(r"^(\d+)$", s)
+    if m:
+        return timedelta(minutes=int(m.group(1)))
+
+    return None
+
+
 def parse_time(
     time_str: str,
     *,
@@ -56,6 +112,10 @@ def parse_time(
     """
     Interpret time_str as a reminder instant in UTC.
 
+    Supports both:
+      - Absolute wall-clock: "7pm", "19:00", "tomorrow 6:30am"
+      - Relative durations: "2 minutes", "1 hour", "in 30m", "+5min"
+
     With ``user_tz``, "today" / "tomorrow" use that zone's calendar; wall-clock is local
     then converted to UTC. Without it, behavior matches legacy UTC calendar logic.
     """
@@ -63,6 +123,18 @@ def parse_time(
         raise ValueError("empty time string")
 
     raw = str(time_str).strip()
+
+    # ── Try relative duration first ──────────────────────────────────
+    delta = _parse_relative_duration(raw)
+    if delta is not None:
+        now_utc = now if now is not None else datetime.now(timezone.utc)
+        if now_utc.tzinfo is None:
+            now_utc = now_utc.replace(tzinfo=timezone.utc)
+        else:
+            now_utc = now_utc.astimezone(timezone.utc)
+        return now_utc + delta
+
+    # ── Otherwise parse as absolute wall-clock ───────────────────────
     low = raw.lower()
     use_tomorrow = "tomorrow" in low
     rest = re.sub(r"\bto-?morrow\b", " ", low, flags=re.I).strip()
