@@ -48,7 +48,7 @@ function ActivityList({ items }: { items: ActivityItem[] }) {
   if (items.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-slate-500">
-        No activity yet — chat with LifeOS to see your history here.
+        No activity yet — chat with Cortexa AI to see your history here.
       </p>
     );
   }

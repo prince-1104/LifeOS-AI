@@ -29,9 +29,12 @@ class Settings(BaseSettings):
     MAX_INPUT_LENGTH: int = 500
 
     # Comma-separated origins for browser clients (e.g. Next.js dev server).
+    # Includes Expo dev server for mobile web preview.
     CORS_ORIGINS: str = (
         "http://localhost:3006,http://127.0.0.1:3006,"
-        "http://localhost:3000,http://127.0.0.1:3000"
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:8081,http://127.0.0.1:8081,"
+        "http://localhost:19006,http://127.0.0.1:19006"
     )
 
     # Clerk JWT verification (backend). JWKS URL from Clerk Dashboard → API keys.

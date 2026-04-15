@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LifeOS AI",
+  title: "Cortexa AI",
   description:
     "Personal AI assistant for expenses, reminders, memories, and daily life.",
 };

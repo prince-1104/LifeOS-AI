@@ -155,7 +155,7 @@ export function ChatBox() {
               {activeDateId === generateDateId(Date.now()) ? (
                 <>
                   <p className="text-lg font-medium tracking-tight text-white">
-                    Welcome to LifeOS AI
+                    Welcome to Cortexa AI
                   </p>
                   <p className="mt-2 text-sm text-zinc-400">
                     Track spending, set reminders, and capture memories — then ask

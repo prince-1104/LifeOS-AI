@@ -1,4 +1,4 @@
-"""Read-only analytics and entity list routes for the LifeOS dashboard."""
+"""Read-only analytics and entity list routes for the Cortexa AI dashboard."""
 
 import asyncio
 from uuid import UUID

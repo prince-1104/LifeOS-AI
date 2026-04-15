@@ -1,7 +1,8 @@
 import type { ProcessData } from "@/lib/api";
 import type { AssistantPayload } from "@/components/Message";
 
-const STORAGE_PREFIX = "lifeos_chat_v1_";
+const STORAGE_PREFIX = "cortexa_chat_v1_";
+const LEGACY_STORAGE_PREFIX = "lifeos_chat_v1_";
 const MAX_MESSAGES = 500;
 
 export type ChatRow =
@@ -15,6 +16,54 @@ export type ChatRow =
 
 function storageKey(userId: string) {
   return `${STORAGE_PREFIX}${userId}`;
+}
+
+function legacyStorageKey(userId: string) {
+  return `${LEGACY_STORAGE_PREFIX}${userId}`;
+}
+
+/**
+ * One-time migration: merge old "lifeos_chat_v1_" data into the new
+ * "cortexa_chat_v1_" key so users don't lose their chat history after
+ * the rebrand.
+ */
+function migrateFromLegacyKey(userId: string): void {
+  if (typeof window === "undefined") return;
+  const migrationFlag = `cortexa_migrated_${userId}`;
+  if (localStorage.getItem(migrationFlag)) return; // already migrated
+
+  try {
+    const legacyRaw = localStorage.getItem(legacyStorageKey(userId));
+    if (legacyRaw) {
+      const legacyData = JSON.parse(legacyRaw) as unknown[];
+      const currentRaw = localStorage.getItem(storageKey(userId));
+      const currentData: unknown[] = currentRaw ? JSON.parse(currentRaw) : [];
+
+      // Collect existing IDs to avoid duplicates
+      const existingIds = new Set(
+        currentData
+          .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+          .map((item) => item.id)
+          .filter((id): id is string => typeof id === "string")
+      );
+
+      // Prepend legacy rows that aren't already present
+      const newRows = legacyData.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === "object" && typeof (item as Record<string, unknown>).id === "string" && !existingIds.has((item as Record<string, unknown>).id as string)
+      );
+
+      if (newRows.length > 0) {
+        const merged = [...newRows, ...currentData].slice(-MAX_MESSAGES);
+        localStorage.setItem(storageKey(userId), JSON.stringify(merged));
+      }
+    }
+  } catch {
+    /* ignore parse/quota errors */
+  }
+
+  // Mark as migrated so we don't re-run
+  localStorage.setItem(migrationFlag, "1");
 }
 
 function normalizeAssistantPayload(raw: unknown): AssistantPayload | null {
@@ -48,6 +97,7 @@ function parseRow(value: unknown): ChatRow | null {
 
 export function loadChatHistory(userId: string): ChatRow[] {
   if (!userId || typeof window === "undefined") return [];
+  migrateFromLegacyKey(userId);
   try {
     const raw = localStorage.getItem(storageKey(userId));
     if (!raw) return [];

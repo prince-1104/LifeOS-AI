@@ -315,3 +315,12 @@ Request: GET /admin/usage/summary - Time: 1.0717s
 Request: GET /admin/top-users - Time: 1.0979s
 Request: GET /admin/usage/weekly - Time: 3.0965s
 Request: GET /admin/usage/monthly - Time: 3.0904s
+Request: POST /process - Time: 13.5417s
+Request: POST /process - Time: 9.0813s
+Request: POST /process - Time: 12.5325s
+Request: GET /transactions - Time: 3.2201s
+Request: GET /analytics/dashboard - Time: 4.0641s
+Request: GET /transactions - Time: 1.1450s
+Request: GET /analytics/dashboard - Time: 3.5681s
+Request: GET /transactions - Time: 1.3039s
+Request: GET /transactions - Time: 0.9509s

@@ -80,7 +80,7 @@ export default function AdminLayout({
             </svg>
           </div>
           <div>
-            <div className="text-sm font-semibold text-white">LifeOS Admin</div>
+            <div className="text-sm font-semibold text-white">Cortexa AI Admin</div>
             <div className="text-[10px] text-slate-500 uppercase tracking-wider">Analytics</div>
           </div>
         </div>

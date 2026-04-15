@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             href="/chat"
             className="text-sm font-semibold tracking-tight text-white"
           >
-            LifeOS AI
+            Cortexa AI
           </Link>
         </header>
         <main className="relative flex min-h-0 flex-1 flex-col">{children}</main>

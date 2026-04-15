@@ -74,7 +74,7 @@ export function Sidebar({
           className="text-lg font-semibold tracking-tight text-white"
           onClick={onCloseMobile}
         >
-          LifeOS AI
+          Cortexa AI
         </Link>
         <p className="mt-1 text-xs text-zinc-500">Your day, understood.</p>
       </div>
