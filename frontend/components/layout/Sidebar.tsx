@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { UserButton, useUser, useClerk } from "@clerk/nextjs";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { loadChatHistory, formatDateHeader, isSameDay, generateDateId } from "@/lib/chat-history";
@@ -71,12 +72,13 @@ export function Sidebar({
       <div className="border-b border-white/[0.06] px-5 py-6">
         <Link
           href="/chat"
-          className="text-lg font-semibold tracking-tight text-white"
+          className="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-white"
           onClick={onCloseMobile}
         >
+          <Image src="/logo.png" alt="Cortexa AI" width={32} height={32} className="rounded-lg" />
           Cortexa AI
         </Link>
-        <p className="mt-1 text-xs text-zinc-500">Your day, understood.</p>
+        <p className="mt-1 pl-[42px] text-xs text-zinc-500">Your day, understood.</p>
       </div>
       <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
         <div className="flex flex-col gap-0.5">

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { Sidebar } from "./Sidebar";
@@ -31,8 +32,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
           <Link
             href="/chat"
-            className="text-sm font-semibold tracking-tight text-white"
+            className="flex items-center gap-2 text-sm font-semibold tracking-tight text-white"
           >
+            <Image src="/logo.png" alt="Cortexa AI" width={24} height={24} className="rounded-md" />
             Cortexa AI
           </Link>
         </header>

@@ -1,6 +1,7 @@
 "use client";
 
 import { SignInButton, SignUpButton, useAuth } from "@clerk/nextjs";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -34,7 +35,8 @@ export function LandingPage() {
     <div className="min-h-screen">
       <header className="border-b border-white/[0.06] px-6 py-5">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <span className="text-lg font-semibold tracking-tight text-white">
+          <span className="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-white">
+            <Image src="/logo.png" alt="Cortexa AI" width={32} height={32} className="rounded-lg" />
             Cortexa AI
           </span>
           <div className="flex items-center gap-2">
