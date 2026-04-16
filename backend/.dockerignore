@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+timing.log
+test_list_out.txt
+.git
