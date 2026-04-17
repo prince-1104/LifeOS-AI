@@ -14,6 +14,7 @@ const nav = [
   { href: "/reminders", label: "Reminders" },
   { href: "/finance", label: "Finance" },
   { href: "/memories", label: "Memories" },
+  { href: "/profile", label: "Profile" },
 ];
 
 export function Sidebar({

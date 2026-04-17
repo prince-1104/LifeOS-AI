@@ -19,6 +19,10 @@ class User(Base):
     username = Column(String(255), nullable=True)
     phone = Column(String(50), nullable=True)
     image_url = Column(Text, nullable=True)
+    age = Column(Integer, nullable=True)
+    gender = Column(String(20), nullable=True)
+    address = Column(Text, nullable=True)
+    hobbies = Column(Text, nullable=True)
     last_sign_in_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(
         DateTime(timezone=True),

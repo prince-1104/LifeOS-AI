@@ -179,3 +179,49 @@ export async function deleteMemory(getToken: GetToken, id: string): Promise<void
   const res = await fetch(`${base()}/memories/${id}`, { method: "DELETE", headers });
   if (!res.ok) throw new Error(await res.text());
 }
+
+// ── Profile ──────────────────────────────────────────────────────────
+
+export type UserProfile = {
+  id: string;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  image_url: string | null;
+  age: number | null;
+  gender: string | null;
+  address: string | null;
+  hobbies: string | null;
+  profile_complete: boolean;
+};
+
+export async function getProfile(getToken: GetToken): Promise<UserProfile> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${base()}/user/profile`, { headers });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<UserProfile>;
+}
+
+export type ProfileUpdateParams = {
+  first_name?: string;
+  last_name?: string;
+  age?: number;
+  gender?: string;
+  address?: string;
+  hobbies?: string;
+};
+
+export async function updateProfile(
+  getToken: GetToken,
+  params: ProfileUpdateParams,
+): Promise<UserProfile> {
+  const headers = await jsonAuth(getToken);
+  const res = await fetch(`${base()}/user/profile`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<UserProfile>;
+}

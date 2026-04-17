@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import OneSignalInit from "@/components/OneSignalInit";
+import { ProfileGuard } from "@/components/ProfileGuard";
 
 export default function AppLayout({
   children,
@@ -7,9 +8,11 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <AppShell>
-      <OneSignalInit />
-      {children}
-    </AppShell>
+    <ProfileGuard>
+      <AppShell>
+        <OneSignalInit />
+        {children}
+      </AppShell>
+    </ProfileGuard>
   );
 }
