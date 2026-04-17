@@ -116,17 +116,15 @@ async def process(
     request_id = str(uuid.uuid4())
     tz: ZoneInfo | None = None
     if req.user_timezone:
+        tz_str = req.user_timezone
+        if tz_str.upper() == "IST" or tz_str == "Asia/Calcutta":
+            tz_str = "Asia/Kolkata"
         try:
-            tz = ZoneInfo(req.user_timezone)
+            tz = ZoneInfo(tz_str)
         except Exception:
-            return ProcessResponseEnvelope(
-                success=False,
-                type="error",
-                response="Invalid timezone identifier.",
-                data=None,
-                timestamp=utc_timestamp(),
-                request_id=request_id,
-            )
+            tz = ZoneInfo("Asia/Kolkata")
+    else:
+        tz = ZoneInfo("Asia/Kolkata")
 
     result = await process_input(
         user_id,
