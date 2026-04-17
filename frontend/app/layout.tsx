@@ -17,6 +17,18 @@ export const metadata: Metadata = {
   title: "Cortexa AI",
   description:
     "Personal AI assistant for expenses, reminders, memories, and daily life.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
+  themeColor: "#06b6d4",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Cortexa AI",
+  },
 };
 
 export default function RootLayout({
