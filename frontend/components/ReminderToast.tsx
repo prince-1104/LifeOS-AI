@@ -5,38 +5,67 @@ import { useAuth } from "@clerk/nextjs";
 import { getDueReminders, markReminderDone, type ReminderRow } from "@/lib/api";
 
 /**
- * Generate a pleasant notification chime using the Web Audio API.
- * Three ascending tones that sound like a gentle bell.
+ * Generate a rich, longer notification melody using the Web Audio API.
+ * A warm two-phrase arpeggio (~3 seconds) that sounds like a premium phone alarm.
  */
 function playNotificationSound() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-    const playTone = (freq: number, startTime: number, duration: number) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+    const playNote = (
+      freq: number,
+      startTime: number,
+      duration: number,
+      volume: number = 0.2,
+    ) => {
+      // Sine layer — warm fundamental
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(freq, startTime);
+      gain1.gain.setValueAtTime(0, startTime);
+      gain1.gain.linearRampToValueAtTime(volume, startTime + 0.04);
+      gain1.gain.setValueAtTime(volume, startTime + duration * 0.6);
+      gain1.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(startTime);
+      osc1.stop(startTime + duration);
 
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, startTime);
-
-      gain.gain.setValueAtTime(0, startTime);
-      gain.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(startTime);
-      osc.stop(startTime + duration);
+      // Triangle layer — adds shimmer / bell character
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "triangle";
+      osc2.frequency.setValueAtTime(freq * 2, startTime); // octave up
+      gain2.gain.setValueAtTime(0, startTime);
+      gain2.gain.linearRampToValueAtTime(volume * 0.3, startTime + 0.04);
+      gain2.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.7);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(startTime);
+      osc2.stop(startTime + duration);
     };
 
-    const now = ctx.currentTime;
-    playTone(523.25, now, 0.3);        // C5
-    playTone(659.25, now + 0.15, 0.3); // E5
-    playTone(783.99, now + 0.3, 0.5);  // G5
+    const t = ctx.currentTime;
 
-    // Clean up after sounds finish
-    setTimeout(() => ctx.close(), 2000);
+    // ── Phrase 1: ascending arpeggio ──────────────────
+    playNote(523.25, t + 0.0, 0.4, 0.2);   // C5
+    playNote(587.33, t + 0.2, 0.4, 0.2);   // D5
+    playNote(659.25, t + 0.4, 0.4, 0.22);  // E5
+    playNote(783.99, t + 0.6, 0.5, 0.24);  // G5
+
+    // ── Brief pause, then Phrase 2: higher resolve ───
+    playNote(659.25, t + 1.2, 0.35, 0.18); // E5
+    playNote(783.99, t + 1.4, 0.35, 0.2);  // G5
+    playNote(880.0, t + 1.6, 0.4, 0.22);   // A5
+    playNote(1046.5, t + 1.85, 0.7, 0.25); // C6 (resolve, longer)
+
+    // ── Gentle tail echo ─────────────────────────────
+    playNote(783.99, t + 2.5, 0.5, 0.1);   // G5 (soft echo)
+    playNote(1046.5, t + 2.7, 0.8, 0.12);  // C6 (soft echo, fade)
+
+    // Clean up after melody finishes
+    setTimeout(() => ctx.close(), 5000);
   } catch {
     /* Web Audio not available — silent fallback */
   }
