@@ -1,10 +1,9 @@
 const base = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  // If no env is set, or if the user mistyped ilkay.app/up.railway.app without the ID, force the correct Railway domain.
-  if (!envUrl || envUrl.includes("lifeos-ai-production") || envUrl === "http://127.0.0.1:6060") {
-    return "https://lifeos-ai-production-ceea.up.railway.app";
+  if (typeof window !== "undefined") {
+    // Rely on Next.js rewrite to avoid ISP DNS blocks.
+    return "/api";
   }
-  return envUrl.replace(/\/$/, "");
+  return process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 };
 
 /** Clerk session token getter from `useAuth().getToken`. */

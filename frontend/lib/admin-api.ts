@@ -3,11 +3,13 @@
  * Token is stored in localStorage after password login.
  */
 
-const base = () =>
-  (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:6060").replace(
-    /\/$/,
-    "",
-  );
+const base = () => {
+  if (typeof window !== "undefined") {
+    // Rely on Next.js rewrite to avoid ISP DNS blocks.
+    return "/api";
+  }
+  return process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
+};
 
 const ADMIN_TOKEN_KEY = "admin_session_token";
 

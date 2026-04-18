@@ -4,8 +4,8 @@
  */
 
 // In dev, use your machine's LAN IP so the phone/emulator can reach the server.
-// In production, swap this for your deployed URL.
-const API_BASE = "https://lifeos-ai-production-ceea.up.railway.app"; 
+// In production, we proxy through the Next.js app to bypass ISP DNS blocks on Railway.
+const API_BASE = "https://cortexa.doptonin.online/api"; 
 
 export function getApiBase(): string {
   return API_BASE.replace(/\/$/, "");
