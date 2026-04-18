@@ -45,7 +45,15 @@ export function ChatBox() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const canPersistRef = useRef(false);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    // Small delay to let DOM update before scrolling
+    requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+    });
+  }, []);
 
   useLayoutEffect(() => {
     if (!userLoaded || !user?.id) {
@@ -57,6 +65,8 @@ export function ChatBox() {
     const loaded = loadChatHistory(id);
     setSession({ userId: id, rows: loaded });
     canPersistRef.current = true;
+    // Scroll to bottom on initial load (instant, no animation)
+    setTimeout(() => scrollToBottom("instant"), 50);
   }, [userLoaded, user?.id]);
 
   useEffect(() => {
@@ -81,6 +91,7 @@ export function ChatBox() {
     setSession((s) => ({ ...s, rows: [...s.rows, userMsg] }));
     setInput("");
     setLoading(true);
+    scrollToBottom();
 
     const todayId = generateDateId(Date.now());
     if (searchParams?.get("date") !== todayId) {
@@ -103,6 +114,7 @@ export function ChatBox() {
         timestamp: Date.now(),
       };
       setSession((s) => ({ ...s, rows: [...s.rows, assistantRow] }));
+      scrollToBottom();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong.";
       const errRow: ChatRow = {
@@ -117,6 +129,7 @@ export function ChatBox() {
         timestamp: Date.now(),
       };
       setSession((s) => ({ ...s, rows: [...s.rows, errRow] }));
+      scrollToBottom();
     } finally {
       setLoading(false);
     }
@@ -145,6 +158,7 @@ export function ChatBox() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
+        ref={scrollAreaRef}
         className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8"
         aria-live="polite"
         aria-relevant="additions"
