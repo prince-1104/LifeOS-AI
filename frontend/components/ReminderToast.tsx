@@ -109,7 +109,7 @@ export default function ReminderToast() {
 
   useEffect(() => {
     poll();
-    const id = setInterval(poll, 30_000);
+    const id = setInterval(poll, 15_000); // Check every 15 seconds
     return () => clearInterval(id);
   }, [poll]);
 
