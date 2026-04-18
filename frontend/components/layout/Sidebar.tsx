@@ -6,6 +6,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { loadChatHistory, formatDateHeader, isSameDay, generateDateId } from "@/lib/chat-history";
+import { useAuth } from "@clerk/nextjs";
+import { getReminders } from "@/lib/api";
 
 
 const nav = [
@@ -28,8 +30,26 @@ export function Sidebar({
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
+  const { getToken, isLoaded: authLoaded } = useAuth();
 
   const [historyDates, setHistoryDates] = useState<{label: string, id: string}[]>([]);
+  const [pendingRemindersCount, setPendingRemindersCount] = useState(0);
+
+  // Poll for pending reminders count
+  useEffect(() => {
+    if (!authLoaded) return;
+    const fetchCount = async () => {
+      try {
+        const rows = await getReminders(getToken);
+        setPendingRemindersCount(rows.filter((r) => r.status === "pending").length);
+      } catch {
+        /* fail silently */
+      }
+    };
+    fetchCount();
+    const id = setInterval(fetchCount, 15_000);
+    return () => clearInterval(id);
+  }, [authLoaded, getToken]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -94,13 +114,18 @@ export function Sidebar({
                 href={item.href}
                 onClick={onCloseMobile}
                 className={[
-                  "rounded-xl px-3 py-2.5 text-sm font-medium transition",
+                  "rounded-xl px-3 py-2.5 text-sm font-medium transition flex items-center justify-between",
                   active
                     ? "bg-zinc-800/90 text-white"
                     : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200",
                 ].join(" ")}
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.label === "Reminders" && pendingRemindersCount > 0 && (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-cyan-500/20 px-1.5 text-[10px] items-center font-bold text-cyan-400 border border-cyan-500/30">
+                    {pendingRemindersCount}
+                  </span>
+                )}
               </Link>
             );
           })}

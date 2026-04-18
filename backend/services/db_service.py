@@ -171,30 +171,26 @@ class DBService:
         return list(result.scalars().all())
 
     async def list_reminders(
-        self, user_id: str, limit: int = 100
-    ) -> list[Reminder]:
-        """Return ALL reminders (pending first, then done) so nothing vanishes."""
+    async def list_reminders(self, user_id: str):
         from sqlalchemy import case
-        sort_status = case(
-            (Reminder.status == "pending", 0),
-            else_=1,
-        )
         stmt = (
-            select(Reminder)
+            select(Reminder.id, Reminder.task, Reminder.reminder_time, Reminder.status, Reminder.snooze_count)
             .where(Reminder.user_id == user_id)
-            .order_by(sort_status, Reminder.reminder_time.asc())
-            .limit(limit)
+            .order_by(
+                case((Reminder.status == "pending", 0), else_=1),
+                Reminder.reminder_time.asc(),
+            )
         )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        res = await self.session.execute(stmt)
+        return res.all()
 
-    async def list_due_reminders(
-        self, user_id: str
-    ) -> list[Reminder]:
-        """Reminders that are past due but still pending (for in-app notification)."""
+    async def list_due_reminders(self, user_id: str):
+        """Used for in-app polling of past due pending reminders"""
+        from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
         stmt = (
-            select(Reminder)
+            select(Reminder.id, Reminder.task, Reminder.reminder_time, Reminder.status, Reminder.snooze_count)
             .where(
                 Reminder.user_id == user_id,
                 Reminder.status == "pending",
@@ -202,8 +198,8 @@ class DBService:
             )
             .order_by(Reminder.reminder_time.asc())
         )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        res = await self.session.execute(stmt)
+        return res.all()
 
     async def list_recent_transactions(
         self, user_id: str, limit: int = 50
@@ -246,6 +242,27 @@ class DBService:
         if not row or row.user_id != user_id:
             return False
         await self.session.delete(row)
+        await self.session.commit()
+        return True
+
+    async def snooze_reminder(self, id: UUID, user_id: str) -> bool:
+        from datetime import timedelta
+        stmt = select(Reminder).where(Reminder.id == id)
+        result = await self.session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if not row or row.user_id != user_id:
+            return False
+        
+        # 1st snooze -> +5 mins. Subsequent snoozes -> +30 mins
+        row.snooze_count += 1
+        minutes_to_add = 5 if row.snooze_count == 1 else 30
+        row.reminder_time = row.reminder_time + timedelta(minutes=minutes_to_add)
+        
+        # Reset memory cache from scheduler if it was sent
+        from scheduler.reminder_scheduler import _push_sent
+        if str(id) in _push_sent:
+            _push_sent.remove(str(id))
+
         await self.session.commit()
         return True
 

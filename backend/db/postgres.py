@@ -46,6 +46,11 @@ async def init_db():
                 "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS latency_ms_total NUMERIC(12,3)"
             )
         )
+        await conn.execute(
+            text(
+                "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS snooze_count INTEGER DEFAULT 0 NOT NULL"
+            )
+        )
         # ── User profile columns (Clerk sync) ────────────────────────
         for col_def in [
             "first_name VARCHAR(255)",

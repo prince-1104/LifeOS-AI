@@ -120,6 +120,7 @@ async def list_reminders(
             task=r.task,
             reminder_time=r.reminder_time,
             status=r.status,
+            snooze_count=r.snooze_count,
         )
         for r in rows
     ]
@@ -140,6 +141,7 @@ async def due_reminders(
             task=r.task,
             reminder_time=r.reminder_time,
             status=r.status,
+            snooze_count=r.snooze_count,
         )
         for r in rows
     ]
@@ -233,6 +235,18 @@ async def mark_reminder_done(
 ):
     svc = DBService(db)
     success = await svc.mark_reminder_done(item_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    return {"success": True}
+
+@router.patch("/reminders/{item_id}/snooze")
+async def snooze_reminder(
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_authenticated_user_id),
+):
+    svc = DBService(db)
+    success = await svc.snooze_reminder(item_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Reminder not found")
     return {"success": True}

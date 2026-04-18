@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { getDueReminders, markReminderDone, type ReminderRow } from "@/lib/api";
+import { getDueReminders, markReminderDone, snoozeReminder, type ReminderRow } from "@/lib/api";
 
 /**
  * Generate a rich, longer notification melody using the Web Audio API.
@@ -122,8 +122,15 @@ export default function ReminderToast() {
     setToasts((prev) => prev.filter((t) => t.id !== rid));
   };
 
-  const handleDismiss = (rid: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== rid));
+  const handleSnooze = async (r: ReminderRow) => {
+    try {
+      await snoozeReminder(getToken, r.id);
+      shownIds.current.delete(r.id);
+      soundPlayed.current.delete(r.id);
+    } catch {
+      /* best-effort */
+    }
+    setToasts((prev) => prev.filter((t) => t.id !== r.id));
   };
 
   if (toasts.length === 0) return null;
@@ -164,10 +171,10 @@ export default function ReminderToast() {
                 ✓ Done
               </button>
               <button
-                onClick={() => handleDismiss(r.id)}
+                onClick={() => handleSnooze(r)}
                 className="reminder-btn-dismiss"
               >
-                Dismiss
+                Snooze ({r.snooze_count === 0 ? "5m" : "30m"})
               </button>
             </div>
           </div>

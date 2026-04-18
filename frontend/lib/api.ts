@@ -109,6 +109,7 @@ export type ReminderRow = {
   task: string;
   reminder_time: string;
   status: string;
+  snooze_count: number;
 };
 
 export async function getReminders(getToken: GetToken): Promise<ReminderRow[]> {
@@ -171,6 +172,12 @@ export async function deleteReminder(getToken: GetToken, id: string): Promise<vo
 export async function markReminderDone(getToken: GetToken, id: string): Promise<void> {
   const headers = await bearerAuth(getToken);
   const res = await fetch(`${base()}/reminders/${id}/done`, { method: "PATCH", headers });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function snoozeReminder(getToken: GetToken, id: string): Promise<void> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${base()}/reminders/${id}/snooze`, { method: "PATCH", headers });
   if (!res.ok) throw new Error(await res.text());
 }
 

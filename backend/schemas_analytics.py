@@ -40,6 +40,7 @@ class ReminderRow(BaseModel):
     task: str
     reminder_time: datetime
     status: str
+    snooze_count: int = 0
 
 
 class RemindersListResponse(BaseModel):

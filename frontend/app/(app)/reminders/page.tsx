@@ -2,8 +2,8 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { getReminders, type ReminderRow, deleteReminder } from "@/lib/api";
-import { TrashIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import { getReminders, type ReminderRow, deleteReminder, markReminderDone } from "@/lib/api";
+import { TrashIcon, CheckCircleIcon, CheckIcon } from "@heroicons/react/24/outline";
 
 export default function RemindersPage() {
   const { getToken, isLoaded } = useAuth();
@@ -29,6 +29,15 @@ export default function RemindersPage() {
       fetchItems();
     } catch (e) {
       alert("Failed to delete reminder.");
+    }
+  };
+
+  const handleMarkDone = async (id: string) => {
+    try {
+      await markReminderDone(getToken, id);
+      fetchItems();
+    } catch (e) {
+      alert("Failed to mark reminder as done.");
     }
   };
 
@@ -90,13 +99,22 @@ export default function RemindersPage() {
                         minute: "2-digit",
                       })}
                     </time>
-                    <button
-                      onClick={() => handleDelete(r.id)}
-                      className="text-rose-500/70 hover:text-rose-400 transition-colors"
-                      title="Delete reminder"
-                    >
-                      <TrashIcon className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleMarkDone(r.id)}
+                        className="p-1.5 text-cyan-500/70 hover:text-cyan-400 transition-colors"
+                        title="Mark complete"
+                      >
+                        <CheckIcon className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(r.id)}
+                        className="p-1.5 text-rose-500/70 hover:text-rose-400 transition-colors"
+                        title="Delete reminder"
+                      >
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}
