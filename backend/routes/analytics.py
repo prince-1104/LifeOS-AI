@@ -225,6 +225,18 @@ async def update_transaction_date(
         raise HTTPException(status_code=404, detail="Transaction not found")
     return {"success": True}
 
+@router.patch("/reminders/{item_id}/done")
+async def mark_reminder_done(
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_authenticated_user_id),
+):
+    svc = DBService(db)
+    success = await svc.mark_reminder_done(item_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    return {"success": True}
+
 @router.delete("/reminders/{item_id}")
 async def delete_reminder(
     item_id: UUID,

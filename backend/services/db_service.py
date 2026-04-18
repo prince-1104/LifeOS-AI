@@ -249,6 +249,16 @@ class DBService:
         await self.session.commit()
         return True
 
+    async def mark_reminder_done(self, id: UUID, user_id: str) -> bool:
+        stmt = select(Reminder).where(Reminder.id == id)
+        result = await self.session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if not row or row.user_id != user_id:
+            return False
+        row.status = "done"
+        await self.session.commit()
+        return True
+
     async def delete_reminder(self, id: UUID, user_id: str) -> bool:
         stmt = select(Reminder).where(Reminder.id == id)
         result = await self.session.execute(stmt)

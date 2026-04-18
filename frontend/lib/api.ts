@@ -168,6 +168,12 @@ export async function deleteReminder(getToken: GetToken, id: string): Promise<vo
   if (!res.ok) throw new Error(await res.text());
 }
 
+export async function markReminderDone(getToken: GetToken, id: string): Promise<void> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${base()}/reminders/${id}/done`, { method: "PATCH", headers });
+  if (!res.ok) throw new Error(await res.text());
+}
+
 export async function deleteTransaction(getToken: GetToken, id: string): Promise<void> {
   const headers = await bearerAuth(getToken);
   const res = await fetch(`${base()}/transactions/${id}`, { method: "DELETE", headers });
