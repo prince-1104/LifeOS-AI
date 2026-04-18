@@ -170,7 +170,6 @@ class DBService:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_reminders(
     async def list_reminders(self, user_id: str):
         from sqlalchemy import case
         stmt = (
