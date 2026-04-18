@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +13,16 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
     QDRANT_URL: str
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def ensure_asyncpg_scheme(cls, v: str) -> str:
+        """Railway/neutral URLs often use postgresql://; SQLAlchemy async needs postgresql+asyncpg://."""
+        if isinstance(v, str) and v.startswith("postgresql://") and not v.startswith(
+            "postgresql+asyncpg://"
+        ):
+            return "postgresql+asyncpg://" + v.removeprefix("postgresql://")
+        return v
     QDRANT_API_KEY: str
     OPENAI_API_KEY: str
     GEMINI_API_KEY: str
