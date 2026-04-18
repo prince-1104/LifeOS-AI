@@ -16,11 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_response import ProcessResponseEnvelope, utc_timestamp
 from auth.deps import get_authenticated_user_id, get_current_user
-from sqlalchemy import text
 from config import get_settings
 from db.postgres import get_db, init_db
 from db.qdrant import init_qdrant
 from services.process_service import process_input
+from services.user_sync import ensure_user_exists
 from routes.analytics import router as analytics_router
 from routes.admin import router as admin_router
 from routes.profile import router as profile_router
@@ -69,41 +69,6 @@ class ProcessRequest(BaseModel):
 async def health():
     return {"status": "ok"}
 
-
-async def ensure_user_exists(db, user):
-    """Upsert full Clerk profile into the users table.
-    Every field is updated on conflict so the DB stays in sync with Clerk.
-    """
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info("ensure_user_exists: id=%s email=%s name=%s %s",
-                user.id, user.email, user.first_name, user.last_name)
-
-    query = text("""
-    INSERT INTO users (id, email, first_name, last_name, username, phone, image_url, last_sign_in_at)
-    VALUES (:id, :email, :first_name, :last_name, :username, :phone, :image_url, :last_sign_in_at)
-    ON CONFLICT (id) DO UPDATE SET
-        email          = COALESCE(EXCLUDED.email, users.email),
-        first_name     = COALESCE(EXCLUDED.first_name, users.first_name),
-        last_name      = COALESCE(EXCLUDED.last_name, users.last_name),
-        username       = COALESCE(EXCLUDED.username, users.username),
-        phone          = COALESCE(EXCLUDED.phone, users.phone),
-        image_url      = COALESCE(EXCLUDED.image_url, users.image_url),
-        last_sign_in_at = COALESCE(EXCLUDED.last_sign_in_at, users.last_sign_in_at),
-        updated_at     = NOW()
-    """)
-
-    await db.execute(query, {
-        "id": user.id,
-        "email": user.email,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "username": user.username,
-        "phone": user.phone,
-        "image_url": user.image_url,
-        "last_sign_in_at": user.last_sign_in_at,
-    })
-    await db.commit()
 
 @app.post("/process", response_model=ProcessResponseEnvelope)
 async def process(

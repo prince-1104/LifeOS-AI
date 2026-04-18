@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.deps import get_current_user
 from db.postgres import get_db
+from services.user_sync import ensure_user_exists
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,8 @@ async def get_profile(
     db: AsyncSession = Depends(get_db),
 ):
     """Return the current user's profile from the DB."""
+    await ensure_user_exists(db, user)
+
     result = await db.execute(
         text("SELECT * FROM users WHERE id = :id"), {"id": user.id}
     )
@@ -80,6 +83,8 @@ async def update_profile(
     db: AsyncSession = Depends(get_db),
 ):
     """Update profile fields (age, gender, address, hobbies, name)."""
+    await ensure_user_exists(db, user)
+
     # Build SET clause dynamically from non-None fields
     updates = {}
     if body.first_name is not None:
