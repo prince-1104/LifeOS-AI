@@ -113,7 +113,27 @@ async def list_reminders(
     user_id: str = Depends(get_authenticated_user_id),
 ) -> RemindersListResponse:
     svc = DBService(db)
-    rows = await svc.list_pending_reminders(user_id)
+    rows = await svc.list_reminders(user_id)
+    items = [
+        ReminderRow(
+            id=UUID(str(r.id)),
+            task=r.task,
+            reminder_time=r.reminder_time,
+            status=r.status,
+        )
+        for r in rows
+    ]
+    return RemindersListResponse(items=items)
+
+
+@router.get("/reminders/due", response_model=RemindersListResponse)
+async def due_reminders(
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_authenticated_user_id),
+) -> RemindersListResponse:
+    """Reminders that are past due but still pending — used for in-app toasts."""
+    svc = DBService(db)
+    rows = await svc.list_due_reminders(user_id)
     items = [
         ReminderRow(
             id=UUID(str(r.id)),

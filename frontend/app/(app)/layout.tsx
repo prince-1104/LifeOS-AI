@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import OneSignalInit from "@/components/OneSignalInit";
+import ReminderToast from "@/components/ReminderToast";
 import { ProfileGuard } from "@/components/ProfileGuard";
 
 export default function AppLayout({
@@ -11,6 +12,7 @@ export default function AppLayout({
     <ProfileGuard>
       <AppShell>
         <OneSignalInit />
+        <ReminderToast />
         {children}
       </AppShell>
     </ProfileGuard>

@@ -39,7 +39,7 @@ async def send_push(
 
     payload: dict = {
         "app_id": settings.ONESIGNAL_APP_ID,
-        "include_external_user_ids": list(external_user_ids),
+        "include_aliases": {"external_id": list(external_user_ids)},
         "target_channel": "push",
         "headings": {"en": title},
         "contents": {"en": message},

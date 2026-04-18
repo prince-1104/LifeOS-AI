@@ -119,6 +119,14 @@ export async function getReminders(getToken: GetToken): Promise<ReminderRow[]> {
   return data.items;
 }
 
+export async function getDueReminders(getToken: GetToken): Promise<ReminderRow[]> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${base()}/reminders/due`, { headers });
+  if (!res.ok) throw new Error(await res.text());
+  const data = (await res.json()) as { items: ReminderRow[] };
+  return data.items;
+}
+
 export type TransactionRow = {
   id: string;
   type: string;

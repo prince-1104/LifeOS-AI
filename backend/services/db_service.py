@@ -170,17 +170,37 @@ class DBService:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_pending_reminders(
+    async def list_reminders(
         self, user_id: str, limit: int = 100
     ) -> list[Reminder]:
+        """Return ALL reminders (pending first, then done) so nothing vanishes."""
+        from sqlalchemy import case
+        sort_status = case(
+            (Reminder.status == "pending", 0),
+            else_=1,
+        )
+        stmt = (
+            select(Reminder)
+            .where(Reminder.user_id == user_id)
+            .order_by(sort_status, Reminder.reminder_time.asc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_due_reminders(
+        self, user_id: str
+    ) -> list[Reminder]:
+        """Reminders that are past due but still pending (for in-app notification)."""
+        now = datetime.now(timezone.utc)
         stmt = (
             select(Reminder)
             .where(
                 Reminder.user_id == user_id,
                 Reminder.status == "pending",
+                Reminder.reminder_time <= now,
             )
             .order_by(Reminder.reminder_time.asc())
-            .limit(limit)
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
