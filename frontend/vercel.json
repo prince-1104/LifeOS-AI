@@ -1,3 +1,9 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://lifeos-ai-production-ceea.up.railway.app/:path*"
+    }
+  ]
 }
