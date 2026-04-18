@@ -26,5 +26,16 @@ async def process(
     task = str(orch.task).strip()
     await insert_reminder(db, user_id, task, reminder_time)
 
-    when = reminder_time.strftime("%Y-%m-%d %H:%M UTC")
-    return f"Reminder set for {task} at {when}."
+    # Format the response in user time if timezone is known
+    display_time = reminder_time
+    time_suffix = ""
+    if user_timezone is not None:
+        display_time = display_time.astimezone(user_timezone)
+    else:
+        time_suffix = " (UTC)"
+        
+    when = display_time.strftime("%I:%M %p").lstrip("0") + time_suffix
+    if display_time.date() != reminder_time.date():
+        when = display_time.strftime("%b %d, %I:%M %p").lstrip("0") + time_suffix
+
+    return f"Reminder set for '{task}' at {when}."
