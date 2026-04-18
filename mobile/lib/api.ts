@@ -5,7 +5,7 @@
 
 // In dev, use your machine's LAN IP so the phone/emulator can reach the server.
 // In production, swap this for your deployed URL.
-const API_BASE = "http://192.168.1.100:6060"; // ← change to your machine IP
+const API_BASE = "https://lifeos-ai-production-ceea.up.railway.app"; 
 
 export function getApiBase(): string {
   return API_BASE.replace(/\/$/, "");
