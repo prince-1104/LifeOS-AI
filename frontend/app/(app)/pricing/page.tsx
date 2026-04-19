@@ -181,6 +181,7 @@ export default function PricingPage() {
           currentPlan={currentPlan}
           onSelectPlan={handleSelectPlan}
           loading={processing}
+          discountPercent={appliedPromo?.discount_percent}
         />
         
         <div className="mt-16 flex items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 sm:p-8">

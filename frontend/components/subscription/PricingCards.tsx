@@ -40,6 +40,7 @@ type Props = {
   currentPlan?: string;
   onSelectPlan: (planName: string, cycle: "monthly" | "yearly") => void;
   loading?: boolean;
+  discountPercent?: number;
 };
 
 // Represents a single, specific plan
@@ -49,7 +50,8 @@ function SinglePlanCard({
     cycle,
     currentPlan,
     onSelectPlan,
-    loading
+    loading,
+    discountPercent,
 }: {
     plan: PlanInfo;
     isRecommended?: boolean;
@@ -57,10 +59,18 @@ function SinglePlanCard({
     currentPlan?: string;
     onSelectPlan: (planName: string, cycle: "monthly" | "yearly") => void;
     loading?: boolean;
+    discountPercent?: number;
 }) {
     const isCurrent = currentPlan === plan.name;
     const isFree = plan.price_inr_monthly === 0;
     const price = cycle === "monthly" ? plan.price_inr_monthly : plan.price_inr_yearly;
+    
+    let displayPrice = (isFree ? 0 : price);
+    let discountedPrice = displayPrice;
+    
+    if (discountPercent && !isFree) {
+        discountedPrice = Math.max(0, displayPrice - (displayPrice * discountPercent) / 100);
+    }
 
     return (
         <div className={`relative flex flex-col rounded-3xl border p-7 transition-all duration-300 ${
@@ -80,13 +90,31 @@ function SinglePlanCard({
                     {plan.display_name}
                 </h3>
                 <div className="mt-4 flex items-center justify-center gap-1">
-                    <span className="text-4xl font-extrabold tracking-tight text-white">
-                        {isFree ? "₹0" : `₹${price}`}
-                    </span>
-                    {!isFree && (
-                        <span className="text-sm font-medium text-zinc-500">
-                            /{cycle === "monthly" ? "mo" : "yr"}
-                        </span>
+                    {discountPercent && !isFree ? (
+                        <div className="flex flex-col items-center">
+                            <span className="text-sm text-zinc-500 line-through decoration-rose-500/50 decoration-2">
+                                ₹{price}
+                            </span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-4xl font-extrabold tracking-tight text-teal-400">
+                                    ₹{discountedPrice}
+                                </span>
+                                <span className="text-sm font-medium text-zinc-500">
+                                    /{cycle === "monthly" ? "mo" : "yr"}
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <span className="text-4xl font-extrabold tracking-tight text-white">
+                                {isFree ? "₹0" : `₹${price}`}
+                            </span>
+                            {!isFree && (
+                                <span className="text-sm font-medium text-zinc-500">
+                                    /{cycle === "monthly" ? "mo" : "yr"}
+                                </span>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -186,7 +214,7 @@ function GroupCard({
     );
 }
 
-export function PricingCards({ plans, currentPlan, onSelectPlan, loading }: Props) {
+export function PricingCards({ plans, currentPlan, onSelectPlan, loading, discountPercent }: Props) {
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
   
   // Modal state
@@ -244,6 +272,7 @@ export function PricingCards({ plans, currentPlan, onSelectPlan, loading }: Prop
                   currentPlan={currentPlan}
                   onSelectPlan={onSelectPlan}
                   loading={loading}
+                  discountPercent={discountPercent}
               />
           )}
 
@@ -264,6 +293,7 @@ export function PricingCards({ plans, currentPlan, onSelectPlan, loading }: Prop
                   currentPlan={currentPlan}
                   onSelectPlan={onSelectPlan}
                   loading={loading}
+                  discountPercent={discountPercent}
               />
           )}
 
@@ -314,6 +344,7 @@ export function PricingCards({ plans, currentPlan, onSelectPlan, loading }: Prop
                                       onSelectPlan(name, c);
                                   }}
                                   loading={loading}
+                                  discountPercent={discountPercent}
                               />
                           );
                       })}
