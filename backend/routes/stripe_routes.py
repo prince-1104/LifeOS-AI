@@ -421,15 +421,34 @@ async def cashfree_webhook(
 
     # ── Signature verification ────────────────────────────────────────
     if settings.CASHFREE_WEBHOOK_SECRET:
-        signature = request.headers.get("x-cashfree-signature") or request.headers.get("x-webhook-signature", "")
-        expected = hmac.HMAC(
+        import base64
+        signature = request.headers.get("x-webhook-signature") or request.headers.get("x-cashfree-signature", "")
+        ts = request.headers.get("x-webhook-timestamp", "")
+        
+        # In Cashfree V3, signature is base64 of HMAC SHA256 of (timestamp + body)
+        # In legacy, it's just base64 or hex of HMAC SHA256 of body
+        message = (ts + payload_str).encode("utf-8") if ts else payload
+        
+        expected_digest = hmac.HMAC(
             settings.CASHFREE_WEBHOOK_SECRET.encode("utf-8"),
-            payload,
+            message,
             hashlib.sha256,
-        ).hexdigest()
-        if not hmac.compare_digest(signature, expected):
-            print("[CASHFREE] Webhook signature mismatch", flush=True)
-            raise HTTPException(status_code=400, detail="Invalid webhook signature")
+        ).digest()
+        
+        expected_b64 = base64.b64encode(expected_digest).decode("utf-8")
+        expected_hex = expected_digest.hex()
+        
+        if not hmac.compare_digest(signature, expected_b64) and not hmac.compare_digest(signature, expected_hex):
+            # One more attempt for legacy signature without timestamp
+            leg_msg = payload
+            leg_digest = hmac.HMAC(
+                settings.CASHFREE_WEBHOOK_SECRET.encode("utf-8"),
+                leg_msg,
+                hashlib.sha256,
+            ).digest()
+            if not hmac.compare_digest(signature, base64.b64encode(leg_digest).decode("utf-8")) and not hmac.compare_digest(signature, leg_digest.hex()):
+                print(f"[CASHFREE] Webhook signature mismatch. Recv: {signature}", flush=True)
+                raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     try:
         data = json.loads(payload_str)
