@@ -119,8 +119,8 @@ def _cashfree_headers() -> dict:
     return {
         "Content-Type": "application/json",
         "x-api-version": CASHFREE_API_VERSION,
-        "x-client-id": settings.CASHFREE_CLIENT_ID,
-        "x-client-secret": settings.CASHFREE_CLIENT_SECRET,
+        "x-client-id": settings.CASHFREE_CLIENT_ID.strip(),
+        "x-client-secret": settings.CASHFREE_CLIENT_SECRET.strip(),
     }
 
 
