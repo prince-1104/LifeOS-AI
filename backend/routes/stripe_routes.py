@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.deps import get_authenticated_user_id
