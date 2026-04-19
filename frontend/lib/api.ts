@@ -248,3 +248,75 @@ export async function updateProfile(
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<UserProfile>;
 }
+
+// ── Subscription & Plans ─────────────────────────────────────────────
+
+export type PlanInfo = {
+  name: string;
+  display_name: string;
+  price_inr_monthly: number;
+  price_inr_yearly: number;
+  daily_requests: number;
+  memory_writes_per_day: number;
+  memory_storage_limit: number;
+  reminders_per_day: number;
+  voice_input: boolean;
+  premium_tts: boolean;
+  long_term_reminder: boolean;
+};
+
+export type UsageSnapshot = {
+  requests_today: number;
+  memory_writes_today: number;
+  reminders_today: number;
+  monthly_cost_inr: number;
+};
+
+export type SubscriptionStatus = {
+  plan: PlanInfo;
+  usage: UsageSnapshot;
+  plan_start_date: string | null;
+  plan_end_date: string | null;
+  is_active: boolean;
+  cashfree_subscription_id: string | null;
+};
+
+export async function getPlans(): Promise<PlanInfo[]> {
+  const res = await fetch(`${base()}/subscription/plans`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<PlanInfo[]>;
+}
+
+export async function getSubscriptionStatus(
+  getToken: GetToken,
+): Promise<SubscriptionStatus> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${base()}/subscription/status`, { headers });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<SubscriptionStatus>;
+}
+
+export type CreateSubscriptionParams = {
+  plan_id: string;
+  billing_cycle: "monthly" | "yearly";
+  return_url: string;
+};
+
+export type CreateSubscriptionResponse = {
+  subscription_id: string;
+  authorization_link: string;
+};
+
+export async function createSubscription(
+  getToken: GetToken,
+  params: CreateSubscriptionParams,
+): Promise<CreateSubscriptionResponse> {
+  const headers = await jsonAuth(getToken);
+  const res = await fetch(`${base()}/payments/create-subscription`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<CreateSubscriptionResponse>;
+}

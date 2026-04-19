@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { Sidebar } from "./Sidebar";
+import { UpgradeBanner } from "@/components/subscription/UpgradeBanner";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -38,6 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Cortexa AI
           </Link>
         </header>
+        <UpgradeBanner />
         <main className="relative flex min-h-0 flex-1 flex-col">{children}</main>
       </div>
     </div>

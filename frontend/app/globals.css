@@ -76,3 +76,16 @@ body {
 .typing-dot:nth-child(3) {
   animation-delay: 0.3s;
 }
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { loadChatHistory, formatDateHeader, isSameDay, generateDateId } from "@/lib/chat-history";
 import { useAuth } from "@clerk/nextjs";
-import { getReminders } from "@/lib/api";
+import { getReminders, getSubscriptionStatus } from "@/lib/api";
 
 
 const nav = [
@@ -16,6 +16,7 @@ const nav = [
   { href: "/reminders", label: "Reminders" },
   { href: "/finance", label: "Finance" },
   { href: "/memories", label: "Memories" },
+  { href: "/billing", label: "Billing" },
   { href: "/profile", label: "Profile" },
 ];
 
@@ -34,20 +35,25 @@ export function Sidebar({
 
   const [historyDates, setHistoryDates] = useState<{label: string, id: string}[]>([]);
   const [pendingRemindersCount, setPendingRemindersCount] = useState(0);
+  const [isFreePlan, setIsFreePlan] = useState(false);
 
-  // Poll for pending reminders count
+  // Poll for pending reminders count & fetch subscription status
   useEffect(() => {
     if (!authLoaded) return;
-    const fetchCount = async () => {
+    const fetchData = async () => {
       try {
-        const rows = await getReminders(getToken);
+        const [rows, status] = await Promise.all([
+          getReminders(getToken),
+          getSubscriptionStatus(getToken),
+        ]);
         setPendingRemindersCount(rows.filter((r) => r.status === "pending").length);
+        setIsFreePlan(status.plan.price_inr_monthly === 0);
       } catch {
         /* fail silently */
       }
     };
-    fetchCount();
-    const id = setInterval(fetchCount, 15_000);
+    fetchData();
+    const id = setInterval(fetchData, 15_000);
     return () => clearInterval(id);
   }, [authLoaded, getToken]);
 
@@ -151,6 +157,24 @@ export function Sidebar({
           </div>
         )}
       </nav>
+
+      {isFreePlan && (
+        <div className="px-4 pb-4">
+          <Link
+            href="/pricing"
+            onClick={onCloseMobile}
+            className="group relative flex items-center justify-between overflow-hidden rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 to-teal-500/10 px-4 py-3 transition hover:border-cyan-500/50 hover:from-cyan-500/20 hover:to-teal-500/20"
+          >
+             <div className="flex items-center gap-2 text-sm font-medium text-cyan-300">
+               <span>⚡</span> Upgrade Plan
+             </div>
+             <svg className="h-4 w-4 text-cyan-400 opacity-50 transition group-hover:translate-x-1 group-hover:opacity-100" viewBox="0 0 20 20" fill="currentColor">
+               <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+             </svg>
+          </Link>
+        </div>
+      )}
+
       <div className="border-t border-white/[0.06] p-4">
         <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
           <div className="min-w-0">

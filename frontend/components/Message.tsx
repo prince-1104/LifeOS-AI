@@ -205,6 +205,11 @@ export function Message({
       );
     }
 
+    if (type === "limit" && response) {
+      const { LimitMessage } = require("./subscription/LimitMessage");
+      return <LimitMessage message={response} />;
+    }
+
     /* query, unknown, or structured fallbacks */
     return (
       <div className="animate-message-in flex justify-start">
