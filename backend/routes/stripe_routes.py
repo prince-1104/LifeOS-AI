@@ -181,7 +181,8 @@ async def create_subscription(
 
     plan_payload = {
         "plan_id": cf_plan_id,
-        "plan_name": f"{plan.display_name} ({req.billing_cycle})",
+        # Cashfree plan_name only allows alphanumerics and a few special chars - no ₹ or parentheses
+        "plan_name": f"{plan.name} - {req.billing_cycle}",
         "plan_type": "PERIODIC",
         "plan_currency": "INR",
         "plan_recurring_amount": price,
