@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getPromoCodes, createPromoCode, deletePromoCode, type PromoCode } from "@/lib/admin-api";
+import { getPlans, type PlanInfo } from "@/lib/api";
 
 export default function PromosPage() {
   const [promos, setPromos] = useState<PromoCode[]>([]);
@@ -13,7 +14,8 @@ export default function PromosPage() {
   const [discountPercent, setDiscountPercent] = useState<number | "">("");
   const [maxUses, setMaxUses] = useState<number | "">("");
   const [minAmount, setMinAmount] = useState<number | "">("");
-  const [applicablePlans, setApplicablePlans] = useState("");
+  const [availablePlans, setAvailablePlans] = useState<PlanInfo[]>([]);
+  const [selectedPlans, setSelectedPlans] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadPromos();
@@ -22,8 +24,12 @@ export default function PromosPage() {
   async function loadPromos() {
     setLoading(true);
     try {
-      const data = await getPromoCodes();
+      const [data, plansData] = await Promise.all([
+        getPromoCodes(),
+        getPlans().catch(() => []) // gracefully handle error if plans fail
+      ]);
       setPromos(data);
+      setAvailablePlans(plansData.filter(p => p.price_inr_monthly > 0)); // only paid plans
     } catch (e: any) {
       setError(e.message || "Failed to load promo codes");
     } finally {
@@ -43,14 +49,14 @@ export default function PromosPage() {
         discount_percent: Number(discountPercent),
         max_uses: maxUses ? Number(maxUses) : null,
         min_amount: minAmount ? Number(minAmount) : null,
-        applicable_plans: applicablePlans ? applicablePlans : null,
+        applicable_plans: selectedPlans.size > 0 ? Array.from(selectedPlans).join(",") : null,
       });
       setPromos([result, ...promos]);
       setNewCode("");
       setDiscountPercent("");
       setMaxUses("");
       setMinAmount("");
-      setApplicablePlans("");
+      setSelectedPlans(new Set());
     } catch (e: any) {
       setError(e.message || "Failed to create promo code");
     } finally {
@@ -125,18 +131,36 @@ export default function PromosPage() {
             />
           </div>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4 items-end">
-            <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1">Applicable Plans (Comma separated, e.g. basic_29,premium_499)</label>
-              <input 
-                type="text" 
-                placeholder="Leave blank for all plans"
-                className="w-full rounded-xl border border-white/10 bg-white/5 py-2 px-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                value={applicablePlans}
-                onChange={(e) => setApplicablePlans(e.target.value)}
-              />
+          <div className="space-y-3">
+            <label className="block text-xs font-medium text-zinc-400">Applicable Plans (Select which plans the promo is valid for, or leave empty for perfectly ALL plans)</label>
+            <div className="flex flex-wrap gap-2">
+                {availablePlans.length === 0 && (
+                    <span className="text-zinc-500 text-sm italic">No paid plans found to target.</span>
+                )}
+                {availablePlans.map(plan => {
+                    const isSelected = selectedPlans.has(plan.name);
+                    return (
+                        <button
+                            key={plan.name}
+                            type="button"
+                            onClick={() => {
+                                const newSet = new Set(selectedPlans);
+                                if (isSelected) newSet.delete(plan.name);
+                                else newSet.add(plan.name);
+                                setSelectedPlans(newSet);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                                isSelected 
+                                    ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/50" 
+                                    : "bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10"
+                            }`}
+                        >
+                            {plan.display_name}
+                        </button>
+                    )
+                })}
             </div>
-            <div>
+            <div className="pt-2 sm:w-1/4 pb-1">
               <button 
                 type="submit" 
               disabled={creating || !newCode || !discountPercent}
