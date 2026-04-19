@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { getPlans, createSubscription, type PlanInfo, getSubscriptionStatus } from "@/lib/api";
+import { getPlans, createSubscription, validatePromoCode, type PlanInfo, getSubscriptionStatus, ValidatePromoResponse } from "@/lib/api";
 import { PricingCards } from "@/components/subscription/PricingCards";
 import { useRouter } from "next/navigation";
 import { load as loadCashfree } from "@cashfreepayments/cashfree-js";
@@ -15,6 +15,10 @@ export default function PricingPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
+  
+  const [promoCode, setPromoCode] = useState("");
+  const [promoMessage, setPromoMessage] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<ValidatePromoResponse | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -36,6 +40,26 @@ export default function PricingPage() {
     loadData();
   }, [getToken]);
 
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+    
+    // We validate against a dummy plan to see if it's generally valid.
+    // Full validation will happen during checkout for the specific plan chosen.
+    setPromoMessage("Validating...");
+    try {
+      const res = await validatePromoCode(getToken, {
+        promo_code: promoCode,
+        plan_id: "premium_499", // arbitrary, full validation on button click
+        billing_cycle: "monthly"
+      });
+      setAppliedPromo(res);
+      setPromoMessage(res.message);
+    } catch (e) {
+      setAppliedPromo(null);
+      setPromoMessage("Invalid or expired promo code.");
+    }
+  };
+
   const handleSelectPlan = async (planId: string, cycle: "monthly" | "yearly") => {
     setProcessing(true);
     setError("");
@@ -44,6 +68,7 @@ export default function PricingPage() {
         plan_id: planId,
         billing_cycle: cycle,
         return_url: `${window.location.origin}/billing`,
+        promo_code: (appliedPromo?.valid) ? promoCode : undefined,
       });
 
       console.log("[Payment] Backend response:", res);
@@ -126,6 +151,30 @@ export default function PricingPage() {
             {error}
           </div>
         )}
+
+        <div className="mx-auto mb-10 max-w-md flex flex-col items-center">
+            <div className="flex w-full overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03]">
+                <input 
+                    type="text" 
+                    placeholder="Enter Promo Code" 
+                    className="w-full bg-transparent px-4 py-3 placeholder:text-zinc-600 focus:outline-none text-sm font-medium uppercase"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                />
+                <button 
+                  onClick={handleApplyPromo}
+                  className="bg-white/[0.08] px-6 py-3 text-sm font-bold text-white transition hover:bg-white/[0.12] disabled:opacity-50"
+                  disabled={!promoCode.trim()}
+                >
+                    Apply
+                </button>
+            </div>
+            {promoMessage && (
+                <p className={`mt-3 text-sm font-medium ${appliedPromo?.valid ? 'text-teal-400' : 'text-rose-400'}`}>
+                    {promoMessage}
+                </p>
+            )}
+        </div>
 
         <PricingCards
           plans={plans}

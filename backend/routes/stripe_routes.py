@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.deps import get_authenticated_user_id
 from config import get_settings
-from db.models import DailyUsage, User
+from db.models import DailyUsage, User, PromoCode, PromoCodeUsage, PromoCode, PromoCodeUsage
 from db.postgres import get_db
 from plans import (
     PLANS,
@@ -58,6 +58,18 @@ class CreateSubscriptionRequest(BaseModel):
     plan_id: str  # e.g. "basic_29"
     billing_cycle: str = "monthly"  # "monthly" | "yearly"
     return_url: str = "https://app.example.com/billing?status=success"
+    promo_code: str | None = None
+
+class ValidatePromoRequest(BaseModel):
+    promo_code: str
+    plan_id: str
+    billing_cycle: str
+
+class ValidatePromoResponse(BaseModel):
+    valid: bool
+    discount_percent: int = 0
+    final_amount_inr: float = 0.0
+    message: str = ""
 
 
 class CreateSubscriptionResponse(BaseModel):
@@ -144,6 +156,51 @@ def _get_plan_price(plan_name: str, billing_cycle: str) -> int:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+@router.post("/payments/validate-promo", response_model=ValidatePromoResponse)
+async def validate_promo(
+    req: ValidatePromoRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    plan = PLANS.get(req.plan_id)
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    if req.billing_cycle not in ["monthly", "yearly"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid billing cycle")
+
+    base_price = plan.price_inr_monthly if req.billing_cycle == "monthly" else plan.price_inr_yearly
+    if base_price == 0:
+        return ValidatePromoResponse(valid=False, message="Plan is free. Promo code not needed.")
+
+    promo_code_str = req.promo_code.strip().upper()
+    result = await db.execute(select(PromoCode).where(func.upper(PromoCode.code) == promo_code_str))
+    promo = result.scalars().first()
+
+    if not promo:
+        return ValidatePromoResponse(valid=False, message="Invalid promo code")
+    if promo.is_active == 0:
+        return ValidatePromoResponse(valid=False, message="Promo code is inactive")
+    if promo.max_uses and promo.times_used >= promo.max_uses:
+        return ValidatePromoResponse(valid=False, message="Promo code usage limit reached")
+    if promo.expires_at and promo.expires_at < datetime.now(timezone.utc):
+        return ValidatePromoResponse(valid=False, message="Promo code expired")
+    if promo.min_amount and base_price < promo.min_amount:
+        return ValidatePromoResponse(valid=False, message=f"Order amount is too low for this promo code (min ₹{promo.min_amount})")
+    
+    if promo.applicable_plans:
+        allowed_plans = [p.strip() for p in promo.applicable_plans.split(",")]
+        if plan.name not in allowed_plans:
+            return ValidatePromoResponse(valid=False, message="Promo code is not applicable to this plan")
+
+    discount_amount = (base_price * promo.discount_percent) / 100.0
+    final_amount = max(0.0, base_price - discount_amount)
+
+    return ValidatePromoResponse(
+        valid=True,
+        discount_percent=promo.discount_percent,
+        final_amount_inr=final_amount,
+        message=f"Success! {promo.discount_percent}% applied."
+    )
+
 @router.post("/payments/create-subscription", response_model=CreateSubscriptionResponse)
 async def create_subscription(
     req: CreateSubscriptionRequest,
@@ -180,7 +237,55 @@ async def create_subscription(
     try:
         base_url = _cashfree_base_url()
         headers = _cashfree_headers()
-        price = _get_plan_price(req.plan_id, req.billing_cycle)
+        base_price = _get_plan_price(req.plan_id, req.billing_cycle)
+        
+        final_amount = float(base_price)
+        applied_promo = None
+        discount_amount = 0.0
+
+        if req.promo_code:
+            promo_code_str = req.promo_code.strip().upper()
+            result = await db.execute(select(PromoCode).where(func.upper(PromoCode.code) == promo_code_str))
+            promo = result.scalars().first()
+            if promo and promo.is_active == 1:
+                # Validate promo
+                valid = True
+                if promo.max_uses and promo.times_used >= promo.max_uses:
+                    valid = False
+                if promo.expires_at and promo.expires_at < datetime.now(timezone.utc):
+                    valid = False
+                if promo.min_amount and base_price < promo.min_amount:
+                    valid = False
+                if promo.applicable_plans:
+                    allowed_plans = [p.strip() for p in promo.applicable_plans.split(",")]
+                    if req.plan_id not in allowed_plans:
+                        valid = False
+                
+                # Check user usage
+                if valid:
+                    usage_check = await db.execute(
+                        select(PromoCodeUsage).where(
+                            PromoCodeUsage.promo_code_id == promo.id,
+                            PromoCodeUsage.user_id == user_id
+                        )
+                    )
+                    if usage_check.scalars().first():
+                        valid = False
+                        print(f"User {user_id} already used promo {promo.code}")
+
+                if valid:
+                    discount_amount = (base_price * promo.discount_percent) / 100.0
+                    final_amount = max(0.0, base_price - discount_amount)
+                    applied_promo = promo
+
+        if final_amount < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Final amount after discount must be at least ₹1",
+            )
+        
+        # Ensure order amount is correctly formatted (two decimal places)
+        price = round(final_amount, 2)
 
         # Generate unique order ID
         order_id = f"order_{user_id[:8]}_{uuid.uuid4().hex[:8]}"
@@ -246,6 +351,18 @@ async def create_subscription(
 
         # Save order ID to user record for webhook matching
         user.stripe_subscription_id = order_id  # reusing column for cashfree order id
+        
+        # Persist promo usage if applicable
+        if applied_promo:
+            applied_promo.times_used += 1
+            promo_usage = PromoCodeUsage(
+                promo_code_id=applied_promo.id,
+                user_id=user_id,
+                order_id=order_id,
+                discount_amount=discount_amount
+            )
+            db.add(promo_usage)
+
         await db.commit()
 
         return CreateSubscriptionResponse(

@@ -32,6 +32,28 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class CreatePromoCodeRequest(BaseModel):
+    code: str
+    discount_percent: int
+    max_uses: int | None = None
+    min_amount: int | None = None
+    applicable_plans: str | None = None
+    expires_at: datetime | None = None
+
+
+class PromoCodeResponse(BaseModel):
+    id: str
+    code: str
+    discount_percent: int
+    max_uses: int | None
+    times_used: int
+    min_amount: int | None
+    applicable_plans: str | None
+    is_active: int
+    expires_at: datetime | None
+    created_at: datetime
+
+
 # ── Analytics ─────────────────────────────────────────────────────────
 
 

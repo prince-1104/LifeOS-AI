@@ -263,3 +263,44 @@ class DailyUsage(Base):
     tokens_used = Column(Integer, nullable=False, default=0)
     cost_inr = Column(Numeric(10, 4), nullable=False, default=0)
 
+
+class PromoCode(Base):
+    """Discount promo codes for subscription plans."""
+
+    __tablename__ = "promo_codes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code = Column(String(50), nullable=False, unique=True, index=True)
+    discount_percent = Column(Integer, nullable=False)  # 10 = 10% off
+    max_uses = Column(Integer, nullable=True)  # None = unlimited
+    times_used = Column(Integer, nullable=False, default=0)
+    applicable_plans = Column(Text, nullable=True)  # comma-separated plan names, None = all plans
+    min_amount = Column(Integer, nullable=True)  # minimum order amount in INR
+    is_active = Column(Integer, nullable=False, default=1)  # 1 = active, 0 = disabled
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class PromoCodeUsage(Base):
+    """Track which users have used which promo codes."""
+
+    __tablename__ = "promo_code_usage"
+    __table_args__ = (
+        UniqueConstraint("promo_code_id", "user_id", name="uq_promo_user"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    promo_code_id = Column(UUID(as_uuid=True), nullable=False)
+    user_id = Column(String(255), nullable=False)
+    order_id = Column(String(255), nullable=True)
+    discount_amount = Column(Numeric(10, 2), nullable=False)
+    used_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+

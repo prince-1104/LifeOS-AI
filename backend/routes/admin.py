@@ -20,7 +20,7 @@ from auth.admin_auth import (
     verify_reset_code,
 )
 from config import get_settings
-from db.models import DailyUsage, UsageLog, User
+from db.models import DailyUsage, UsageLog, User, PromoCode
 from db.postgres import get_db
 from plans import get_plan
 from schemas_admin import (
@@ -38,6 +38,8 @@ from schemas_admin import (
     UserRevenueRow,
     UserUsageRow,
     WeeklyUsageRow,
+    CreatePromoCodeRequest,
+    PromoCodeResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -453,3 +455,40 @@ async def revenue_per_user(
     # Sort by cost descending (heaviest users first)
     result.sort(key=lambda x: x.total_cost_inr, reverse=True)
     return result
+
+@router.post("/promos", response_model=PromoCodeResponse)
+async def create_promo_code(
+    req: CreatePromoCodeRequest,
+    admin_id: str = Depends(get_admin_session),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new promo code."""
+    promo_code_str = req.code.strip().upper()
+    existing = await db.execute(select(PromoCode).where(func.upper(PromoCode.code) == promo_code_str))
+    if existing.scalars().first():
+        raise HTTPException(status_code=400, detail="Promo code already exists")
+    
+    promo = PromoCode(
+        code=promo_code_str,
+        discount_percent=req.discount_percent,
+        max_uses=req.max_uses,
+        min_amount=req.min_amount,
+        applicable_plans=req.applicable_plans,
+        expires_at=req.expires_at
+    )
+    db.add(promo)
+    await db.commit()
+    await db.refresh(promo)
+    
+    return PromoCodeResponse(
+        id=str(promo.id),
+        code=promo.code,
+        discount_percent=promo.discount_percent,
+        max_uses=promo.max_uses,
+        times_used=promo.times_used,
+        min_amount=promo.min_amount,
+        applicable_plans=promo.applicable_plans,
+        is_active=promo.is_active,
+        expires_at=promo.expires_at,
+        created_at=promo.created_at
+    )

@@ -300,7 +300,35 @@ export type CreateSubscriptionParams = {
   plan_id: string;
   billing_cycle: "monthly" | "yearly";
   return_url: string;
+  promo_code?: string;
 };
+
+export type ValidatePromoParams = {
+  promo_code: string;
+  plan_id: string;
+  billing_cycle: "monthly" | "yearly";
+};
+
+export type ValidatePromoResponse = {
+  valid: boolean;
+  discount_percent: number;
+  final_amount_inr: number;
+  message: string;
+};
+
+export async function validatePromoCode(
+  getToken: GetToken,
+  params: ValidatePromoParams,
+): Promise<ValidatePromoResponse> {
+  const headers = await jsonAuth(getToken);
+  const res = await fetch(`${base()}/payments/validate-promo`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<ValidatePromoResponse>;
+}
 
 export type CreateSubscriptionResponse = {
   subscription_id: string;
