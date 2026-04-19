@@ -305,6 +305,7 @@ export type CreateSubscriptionParams = {
 export type CreateSubscriptionResponse = {
   subscription_id: string;
   authorization_link: string;
+  payment_session_id: string;
 };
 
 export async function createSubscription(

@@ -63,6 +63,7 @@ class CreateSubscriptionRequest(BaseModel):
 class CreateSubscriptionResponse(BaseModel):
     subscription_id: str
     authorization_link: str  # redirect user here to authorize mandate
+    payment_session_id: str = ""  # for Cashfree JS SDK checkout
 
 
 class PlanInfo(BaseModel):
@@ -240,13 +241,7 @@ async def create_subscription(
                 or ""
             )
 
-            # If no direct payment link, construct from payment_session_id
-            if not payment_link:
-                session_id = order_data.get("payment_session_id", "")
-                if session_id:
-                    # Cashfree hosted checkout URL
-                    env_prefix = "sandbox" if "sandbox" in base_url else "app"
-                    payment_link = f"https://{env_prefix}.cashfree.com/pg/orders/{order_id}/pay?payment_session_id={session_id}"
+            session_id = order_data.get("payment_session_id", "")
 
         # Save order ID to user record for webhook matching
         user.stripe_subscription_id = order_id  # reusing column for cashfree order id
@@ -255,6 +250,7 @@ async def create_subscription(
         return CreateSubscriptionResponse(
             subscription_id=order_id,
             authorization_link=payment_link,
+            payment_session_id=session_id,
         )
 
     except HTTPException:

@@ -5,6 +5,7 @@ import { useAuth } from "@clerk/nextjs";
 import { getPlans, createSubscription, type PlanInfo, getSubscriptionStatus } from "@/lib/api";
 import { PricingCards } from "@/components/subscription/PricingCards";
 import { useRouter } from "next/navigation";
+import { load as loadCashfree } from "@cashfreepayments/cashfree-js";
 
 export default function PricingPage() {
   const { getToken } = useAuth();
@@ -44,8 +45,25 @@ export default function PricingPage() {
         billing_cycle: cycle,
         return_url: `${window.location.origin}/billing`,
       });
-      // Redirect to Cashfree payment page
-      window.location.href = res.authorization_link;
+
+      // Use payment_session_id with Cashfree JS SDK if available
+      if (res.payment_session_id) {
+        const cashfreeMode = process.env.NEXT_PUBLIC_CASHFREE_ENV === "production" ? "production" : "sandbox";
+        const cashfree = await loadCashfree({ mode: cashfreeMode });
+        
+        const checkoutOptions = {
+          paymentSessionId: res.payment_session_id,
+          redirectTarget: "_self" as const,
+        };
+        
+        cashfree.checkout(checkoutOptions);
+      } else if (res.authorization_link) {
+        // Fallback: direct link if Cashfree returned one
+        window.location.href = res.authorization_link;
+      } else {
+        setError("No payment link received. Please try again.");
+        setProcessing(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to initiate subscription");
       setProcessing(false);
