@@ -69,6 +69,15 @@ class Settings(BaseSettings):
     ONESIGNAL_APP_ID: str = ""
     ONESIGNAL_REST_API_KEY: str = ""
 
+    # ── Cashfree Payments (subscription billing) ───────────────────────
+    CASHFREE_CLIENT_ID: str = ""
+    CASHFREE_CLIENT_SECRET: str = ""
+    CASHFREE_WEBHOOK_SECRET: str = ""
+    CASHFREE_ENV: str = "sandbox"  # "sandbox" or "production"
+
+    # ── Currency conversion ──────────────────────────────────────────
+    INR_PER_USD: float = 83.0
+
 
 @lru_cache
 def get_settings() -> Settings:

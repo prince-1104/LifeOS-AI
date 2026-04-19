@@ -1,7 +1,18 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint, Column, DateTime, Integer, Numeric, String, Text, func
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 
 from db.postgres import Base
@@ -35,6 +46,13 @@ class User(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+    # ── Subscription fields ───────────────────────────────────────────
+    plan = Column(String(50), nullable=False, server_default="free")
+    stripe_customer_id = Column(String(255), nullable=True, unique=True)
+    stripe_subscription_id = Column(String(255), nullable=True)
+    plan_start_date = Column(DateTime(timezone=True), nullable=True)
+    plan_end_date = Column(DateTime(timezone=True), nullable=True)
 
 
 class Memory(Base):
@@ -226,3 +244,22 @@ class AdminSession(Base):
         nullable=False,
     )
     expires_at = Column(DateTime(timezone=True), nullable=False)
+
+
+class DailyUsage(Base):
+    """Per-user per-day usage counters for subscription limit enforcement."""
+
+    __tablename__ = "daily_usage"
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", name="uq_daily_usage_user_date"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(255), nullable=False, index=True)
+    date = Column(Date, nullable=False)
+    requests_count = Column(Integer, nullable=False, default=0)
+    memory_writes = Column(Integer, nullable=False, default=0)
+    reminders_created = Column(Integer, nullable=False, default=0)
+    tokens_used = Column(Integer, nullable=False, default=0)
+    cost_inr = Column(Numeric(10, 4), nullable=False, default=0)
+

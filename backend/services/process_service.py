@@ -23,6 +23,12 @@ from services.log_service import (
     orch_to_json,
 )
 from services.rate_limit_service import check_rate_limit
+from services.subscription_service import (
+    check_daily_request_limit,
+    check_monthly_cost_limit,
+    get_user_plan_config,
+    increment_daily_requests,
+)
 from services.usage_service import log_token_usage
 
 logger = logging.getLogger(__name__)
@@ -120,6 +126,30 @@ async def process_input(
             data=None,
         )
 
+    # ── Subscription limit checks ─────────────────────────────────────
+    try:
+        _user_row, plan_config = await get_user_plan_config(db, user_id)
+    except Exception:
+        logger.exception("Failed to fetch plan config for user %s", user_id)
+        # Fallback to free plan on error — don't block the request
+        from plans import get_plan
+        plan_config = get_plan("free")
+
+    # 1. Daily request limit
+    req_check = await check_daily_request_limit(db, user_id, plan_config)
+    if not req_check.allowed:
+        return _envelope(
+            success=False,
+            type_str="limit",
+            response=req_check.upgrade_message,
+            request_id=request_id,
+            data={"reason": req_check.reason, "upgrade_plan": req_check.upgrade_plan},
+        )
+
+    # 2. Monthly cost budget (flag for fallback model, don't block)
+    cost_check = await check_monthly_cost_limit(db, user_id, plan_config)
+    use_fallback_model = not cost_check.allowed
+
     t_total_start = time.perf_counter()
 
     t0 = time.perf_counter()
@@ -191,7 +221,13 @@ async def process_input(
     try:
         t1 = time.perf_counter()
         response, type_str = await route(
-            input_text, orch, db, user_id, user_timezone=user_timezone
+            input_text,
+            orch,
+            db,
+            user_id,
+            user_timezone=user_timezone,
+            plan_config=plan_config,
+            use_fallback_model=use_fallback_model,
         )
         route_ms = (time.perf_counter() - t1) * 1000.0
         try:
@@ -241,6 +277,13 @@ async def process_input(
     except Exception:
         logger.exception("log_query failed; request already processed")
 
+    # ── Post-processing: increment daily request counter ──────────────
+    try:
+        await increment_daily_requests(db, user_id)
+        await db.commit()
+    except Exception:
+        logger.exception("Failed to increment daily usage for user %s", user_id)
+
     return _envelope(
         success=True,
         type_str=type_str,
@@ -248,3 +291,4 @@ async def process_input(
         request_id=request_id,
         data=data,
     )
+

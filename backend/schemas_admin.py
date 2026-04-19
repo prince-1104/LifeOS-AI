@@ -92,3 +92,28 @@ class TopUserRow(BaseModel):
     total_tokens: int
     total_requests: int
     cost: float
+
+
+# ── Revenue & Profitability ───────────────────────────────────────────
+
+
+class RevenueSummaryResponse(BaseModel):
+    total_users: int
+    paying_users: int
+    total_revenue_inr: float
+    total_cost_inr: float
+    net_profit_inr: float
+
+
+class UserRevenueRow(BaseModel):
+    user_id: str
+    email: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    plan: str
+    plan_display_name: str
+    plan_price_inr: int
+    total_cost_inr: float
+    profit_loss_inr: float
+    is_over_budget: bool
+

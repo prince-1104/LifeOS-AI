@@ -1,10 +1,11 @@
-"""Service to log LLM token usage into usage_logs table."""
+"""Service to log LLM token usage into usage_logs table and track daily cost."""
 
 import logging
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import get_settings
 from db.models import UsageLog
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ async def log_token_usage(
     endpoint: str | None = None,
     latency_ms: float | None = None,
 ) -> None:
-    """Persist a single LLM call's token usage."""
+    """Persist a single LLM call's token usage and update daily cost."""
     if total_tokens is None:
         total_tokens = prompt_tokens + completion_tokens
 
@@ -41,3 +42,17 @@ async def log_token_usage(
         await db.commit()
     except Exception:
         logger.exception("Failed to log token usage for request %s", request_id)
+        return
+
+    # ── Update daily cost in INR ──────────────────────────────────────
+    try:
+        settings = get_settings()
+        cost_usd = (total_tokens / 1000) * settings.MODEL_COST_PER_1K
+        cost_inr = cost_usd * settings.INR_PER_USD
+
+        from services.subscription_service import add_daily_cost
+        await add_daily_cost(db, user_id, total_tokens, cost_inr)
+        await db.commit()
+    except Exception:
+        logger.exception("Failed to update daily cost for request %s", request_id)
+

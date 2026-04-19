@@ -20,8 +20,9 @@ from auth.admin_auth import (
     verify_reset_code,
 )
 from config import get_settings
-from db.models import UsageLog, User
+from db.models import DailyUsage, UsageLog, User
 from db.postgres import get_db
+from plans import get_plan
 from schemas_admin import (
     AdminLoginRequest,
     AdminLoginResponse,
@@ -31,8 +32,10 @@ from schemas_admin import (
     MessageResponse,
     MonthlyUsageRow,
     ResetPasswordRequest,
+    RevenueSummaryResponse,
     TopUserRow,
     UsageSummaryResponse,
+    UserRevenueRow,
     UserUsageRow,
     WeeklyUsageRow,
 )
@@ -368,3 +371,85 @@ async def top_users(
     
     combined.sort(key=lambda x: x.total_tokens, reverse=True)
     return combined[:limit]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  REVENUE & PROFITABILITY
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@router.get("/revenue/summary", response_model=RevenueSummaryResponse)
+async def revenue_summary(
+    db: AsyncSession = Depends(get_db),
+    _token: str = Depends(get_admin_session),
+):
+    """Total revenue (sum of plan prices), total cost, and net profit."""
+    users_stmt = select(User)
+    users = (await db.execute(users_stmt)).scalars().all()
+
+    total_revenue = 0.0
+    paying_count = 0
+    for u in users:
+        plan = get_plan(u.plan or "free")
+        if plan.price_inr_monthly > 0:
+            total_revenue += plan.price_inr_monthly
+            paying_count += 1
+
+    # Total cost from daily_usage
+    cost_stmt = select(func.coalesce(func.sum(DailyUsage.cost_inr), 0))
+    total_cost = float((await db.execute(cost_stmt)).scalar_one())
+
+    return RevenueSummaryResponse(
+        total_users=len(users),
+        paying_users=paying_count,
+        total_revenue_inr=round(total_revenue, 2),
+        total_cost_inr=round(total_cost, 4),
+        net_profit_inr=round(total_revenue - total_cost, 2),
+    )
+
+
+@router.get("/revenue/users", response_model=list[UserRevenueRow])
+async def revenue_per_user(
+    db: AsyncSession = Depends(get_db),
+    _token: str = Depends(get_admin_session),
+):
+    """Per-user revenue vs cost with over-budget flagging."""
+    users_stmt = select(User).order_by(User.created_at.desc())
+    users = (await db.execute(users_stmt)).scalars().all()
+
+    # Per-user total cost from daily_usage
+    cost_stmt = (
+        select(
+            DailyUsage.user_id,
+            func.coalesce(func.sum(DailyUsage.cost_inr), 0).label("total_cost"),
+        )
+        .group_by(DailyUsage.user_id)
+    )
+    cost_rows = (await db.execute(cost_stmt)).all()
+    cost_map = {r.user_id: float(r.total_cost) for r in cost_rows}
+
+    result = []
+    for u in users:
+        plan = get_plan(u.plan or "free")
+        user_cost = cost_map.get(u.id, 0.0)
+        profit = plan.price_inr_monthly - user_cost
+        is_over = user_cost > plan.monthly_cost_budget_inr
+
+        result.append(
+            UserRevenueRow(
+                user_id=u.id,
+                email=u.email,
+                first_name=u.first_name,
+                last_name=u.last_name,
+                plan=plan.name,
+                plan_display_name=plan.display_name,
+                plan_price_inr=plan.price_inr_monthly,
+                total_cost_inr=round(user_cost, 4),
+                profit_loss_inr=round(profit, 2),
+                is_over_budget=is_over,
+            )
+        )
+
+    # Sort by cost descending (heaviest users first)
+    result.sort(key=lambda x: x.total_cost_inr, reverse=True)
+    return result

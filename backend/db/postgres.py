@@ -64,4 +64,16 @@ async def init_db():
             await conn.execute(
                 text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_def}")
             )
+        # ── Subscription columns ─────────────────────────────────────
+        for col_def in [
+            "plan VARCHAR(50) NOT NULL DEFAULT 'free'",
+            "stripe_customer_id VARCHAR(255)",
+            "stripe_subscription_id VARCHAR(255)",
+            "plan_start_date TIMESTAMPTZ",
+            "plan_end_date TIMESTAMPTZ",
+        ]:
+            await conn.execute(
+                text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_def}")
+            )
+
 
