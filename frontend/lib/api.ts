@@ -306,6 +306,7 @@ export type CreateSubscriptionResponse = {
   subscription_id: string;
   authorization_link: string;
   payment_session_id: string;
+  cashfree_env: "sandbox" | "production";
 };
 
 export async function createSubscription(

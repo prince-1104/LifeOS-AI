@@ -50,10 +50,8 @@ export default function PricingPage() {
 
       if (res.payment_session_id) {
         try {
-          // Determine mode based on env variable
-          const cashfreeMode = process.env.NEXT_PUBLIC_CASHFREE_ENV === "production" 
-            ? "production" as const 
-            : "sandbox" as const;
+          // Use the mode from backend response — ensures backend API and frontend SDK match
+          const cashfreeMode = res.cashfree_env === "production" ? "production" as const : "sandbox" as const;
           
           console.log("[Payment] Initializing Cashfree SDK in", cashfreeMode, "mode");
           const cashfree = await loadCashfree({ mode: cashfreeMode });

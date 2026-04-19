@@ -64,6 +64,7 @@ class CreateSubscriptionResponse(BaseModel):
     subscription_id: str
     authorization_link: str  # redirect user here to authorize mandate
     payment_session_id: str = ""  # for Cashfree JS SDK checkout
+    cashfree_env: str = "sandbox"  # "sandbox" or "production" — frontend SDK needs this
 
 
 class PlanInfo(BaseModel):
@@ -251,6 +252,7 @@ async def create_subscription(
             subscription_id=order_id,
             authorization_link=payment_link,
             payment_session_id=session_id,
+            cashfree_env=get_settings().CASHFREE_ENV or "sandbox",
         )
 
     except HTTPException:
