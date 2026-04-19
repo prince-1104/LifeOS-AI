@@ -261,3 +261,16 @@ export async function deletePromoCode(promoId: string): Promise<{status: string,
   }
   return res.json();
 }
+
+export async function togglePromoStatus(promoId: string): Promise<{status: string, is_active: number}> {
+  const headers = await adminHeaders();
+  const res = await fetch(`${base()}/admin/promos/${promoId}/toggle-status`, {
+    method: "PUT",
+    headers,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Request failed (${res.status})`);
+  }
+  return res.json();
+}

@@ -540,3 +540,28 @@ async def delete_promo_code(
     await db.delete(promo)
     await db.commit()
     return {"status": "success", "message": "Promo code deleted"}
+
+@router.put("/promos/{promo_id}/toggle-status")
+async def toggle_promo_status(
+    promo_id: str,
+    admin_id: str = Depends(get_admin_session),
+    db: AsyncSession = Depends(get_db)
+):
+    """Toggle a promo code active/inactive state."""
+    try:
+        import uuid
+        parsed_id = uuid.UUID(promo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid promo code ID format")
+        
+    result = await db.execute(select(PromoCode).where(PromoCode.id == parsed_id))
+    promo = result.scalars().first()
+    
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+        
+    promo.is_active = 1 if promo.is_active == 0 else 0
+    await db.commit()
+    await db.refresh(promo)
+    
+    return {"status": "success", "is_active": promo.is_active}

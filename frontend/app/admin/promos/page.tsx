@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getPromoCodes, createPromoCode, deletePromoCode, type PromoCode } from "@/lib/admin-api";
+import { getPromoCodes, createPromoCode, deletePromoCode, togglePromoStatus, type PromoCode } from "@/lib/admin-api";
 import { getPlans, type PlanInfo } from "@/lib/api";
 
 export default function PromosPage() {
@@ -75,6 +75,17 @@ export default function PromosPage() {
       setPromos(promos.filter(p => p.id !== id));
     } catch (e: any) {
       setError(e.message || "Failed to delete promo code");
+    }
+  }
+
+  async function handleToggle(id: string) {
+    try {
+      const result = await togglePromoStatus(id);
+      setPromos(promos.map(p => 
+        p.id === id ? { ...p, is_active: result.is_active } : p
+      ));
+    } catch (e: any) {
+      setError(e.message || "Failed to toggle promo code status");
     }
   }
 
@@ -220,7 +231,17 @@ export default function PromosPage() {
                         <span className="inline-flex items-center rounded-full bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-400 border border-rose-500/20">Inactive</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right space-x-2">
+                      <button 
+                        onClick={() => handleToggle(p.id)}
+                        className={`text-xs px-2 py-1 rounded transition border ${
+                            p.is_active 
+                                ? "text-amber-400 hover:text-amber-300 border-amber-500/20 hover:bg-amber-500/10"
+                                : "text-emerald-400 hover:text-emerald-300 border-emerald-500/20 hover:bg-emerald-500/10"
+                        }`}
+                      >
+                        {p.is_active ? "Deactivate" : "Activate"}
+                      </button>
                       <button 
                         onClick={() => handleDelete(p.id)}
                         className="text-xs text-rose-400 hover:text-rose-300 border border-rose-500/20 px-2 py-1 rounded hover:bg-rose-500/10 transition"
