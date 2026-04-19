@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getPromoCodes, createPromoCode, PromiseType, type PromoCode } from "@/lib/admin-api";
+import { getPromoCodes, createPromoCode, type PromoCode } from "@/lib/admin-api";
 
 export default function PromosPage() {
   const [promos, setPromos] = useState<PromoCode[]>([]);
