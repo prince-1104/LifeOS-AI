@@ -194,7 +194,7 @@ async def create_subscription(
     async with httpx.AsyncClient(timeout=15.0) as client:
         # Try to create the plan (ignore 409 if already exists)
         plan_resp = await client.post(
-            f"{base_url}/subscriptions/plans",
+            f"{base_url}/plans",
             headers=headers,
             json=plan_payload,
         )
