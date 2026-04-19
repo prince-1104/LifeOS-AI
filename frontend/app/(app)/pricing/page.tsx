@@ -168,9 +168,19 @@ export default function PricingPage() {
                 </button>
             </div>
             {promoMessage && (
-                <p className={`mt-3 text-sm font-medium ${appliedPromo?.valid ? 'text-teal-400' : 'text-rose-400'}`}>
-                    {promoMessage}
-                </p>
+                <div className={`mt-3 flex flex-col items-center text-center ${appliedPromo?.valid ? 'text-teal-400' : 'text-rose-400'}`}>
+                    <p className="text-sm font-medium">{promoMessage}</p>
+                    {appliedPromo?.valid && appliedPromo.applicable_plans !== undefined && appliedPromo.applicable_plans !== null && appliedPromo.applicable_plans.length > 0 && (
+                        <p className="text-xs mt-1 text-teal-500/80 max-w-[280px]">
+                            Valid for: {appliedPromo.applicable_plans.map(p => p.replace('_', ' ').toUpperCase()).join(', ')}
+                        </p>
+                    )}
+                    {appliedPromo?.valid && (!appliedPromo.applicable_plans || appliedPromo.applicable_plans.length === 0) && (
+                        <p className="text-xs mt-1 text-teal-500/80">
+                            Valid for: All Plans
+                        </p>
+                    )}
+                </div>
             )}
         </div>
 
