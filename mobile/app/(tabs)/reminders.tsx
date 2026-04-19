@@ -13,7 +13,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
-import { getReminders, deleteReminder, type ReminderRow } from "@/lib/api";
+import {
+  getReminders,
+  deleteReminder,
+  markReminderDone,
+  snoozeReminder,
+  type ReminderRow,
+} from "@/lib/api";
 
 function formatReminderTime(iso: string): string {
   const d = new Date(iso);
@@ -35,23 +41,47 @@ function getStatusColor(status: string): string {
     case "pending":
       return Colors.warning;
     case "fired":
+    case "done":
       return Colors.success;
     case "missed":
       return Colors.danger;
+    case "snoozed":
+      return Colors.info;
     default:
       return Colors.textMuted;
+  }
+}
+
+function getStatusIcon(status: string): string {
+  switch (status) {
+    case "pending":
+      return "alarm-outline";
+    case "done":
+    case "fired":
+      return "checkmark-circle-outline";
+    case "snoozed":
+      return "time-outline";
+    case "missed":
+      return "alert-circle-outline";
+    default:
+      return "ellipse-outline";
   }
 }
 
 function ReminderCard({
   item,
   onDelete,
+  onMarkDone,
+  onSnooze,
 }: {
   item: ReminderRow;
   onDelete: (id: string) => void;
+  onMarkDone: (id: string) => void;
+  onSnooze: (id: string) => void;
 }) {
   const statusColor = getStatusColor(item.status);
   const isPending = item.status === "pending";
+  const isDone = item.status === "done" || item.status === "fired";
 
   return (
     <View style={styles.card}>
@@ -62,14 +92,18 @@ function ReminderCard({
             {
               backgroundColor: isPending
                 ? "rgba(245,158,11,0.12)"
-                : "rgba(16,185,129,0.12)",
+                : isDone
+                ? "rgba(16,185,129,0.12)"
+                : item.status === "snoozed"
+                ? "rgba(14,165,233,0.12)"
+                : "rgba(244,63,94,0.12)",
             },
           ]}
         >
           <Ionicons
-            name={isPending ? "alarm-outline" : "checkmark-circle-outline"}
+            name={getStatusIcon(item.status) as any}
             size={20}
-            color={isPending ? Colors.warning : Colors.success}
+            color={statusColor}
           />
         </View>
         <View style={styles.cardInfo}>
@@ -85,16 +119,51 @@ function ReminderCard({
             <Text style={[styles.statusText, { color: statusColor }]}>
               {item.status}
             </Text>
+            {item.snooze_count > 0 && (
+              <Text style={styles.snoozeCount}>
+                · snoozed {item.snooze_count}x
+              </Text>
+            )}
           </View>
         </View>
       </View>
-      <TouchableOpacity
-        onPress={() => onDelete(item.id)}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        style={styles.deleteBtn}
-      >
-        <Ionicons name="trash-outline" size={16} color={Colors.textDark} />
-      </TouchableOpacity>
+
+      {/* Action buttons */}
+      <View style={styles.cardActions}>
+        {isPending && (
+          <>
+            <TouchableOpacity
+              onPress={() => onMarkDone(item.id)}
+              style={styles.actionBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={20}
+                color={Colors.success}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onSnooze(item.id)}
+              style={styles.actionBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons
+                name="time-outline"
+                size={20}
+                color={Colors.info}
+              />
+            </TouchableOpacity>
+          </>
+        )}
+        <TouchableOpacity
+          onPress={() => onDelete(item.id)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.actionBtn}
+        >
+          <Ionicons name="trash-outline" size={16} color={Colors.textDark} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -149,6 +218,40 @@ export default function RemindersScreen() {
     [getToken]
   );
 
+  const handleMarkDone = useCallback(
+    async (id: string) => {
+      try {
+        await markReminderDone(getToken, id);
+        setReminders((prev) =>
+          prev.map((r) =>
+            r.id === id ? { ...r, status: "done" } : r
+          )
+        );
+      } catch {
+        Alert.alert("Error", "Failed to mark reminder as done.");
+      }
+    },
+    [getToken]
+  );
+
+  const handleSnooze = useCallback(
+    async (id: string) => {
+      try {
+        await snoozeReminder(getToken, id);
+        setReminders((prev) =>
+          prev.map((r) =>
+            r.id === id
+              ? { ...r, status: "snoozed", snooze_count: (r.snooze_count || 0) + 1 }
+              : r
+          )
+        );
+      } catch {
+        Alert.alert("Error", "Failed to snooze reminder.");
+      }
+    },
+    [getToken]
+  );
+
   const pendingCount = reminders.filter((r) => r.status === "pending").length;
 
   return (
@@ -181,7 +284,12 @@ export default function RemindersScreen() {
             />
           }
           renderItem={({ item }) => (
-            <ReminderCard item={item} onDelete={handleDelete} />
+            <ReminderCard
+              item={item}
+              onDelete={handleDelete}
+              onMarkDone={handleMarkDone}
+              onSnooze={handleSnooze}
+            />
           )}
           ListEmptyComponent={
             <View style={styles.emptyState}>
@@ -260,6 +368,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     marginTop: 4,
+    flexWrap: "wrap",
   },
   cardTime: {
     fontSize: FontSize.xs,
@@ -276,10 +385,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textTransform: "capitalize",
   },
-  deleteBtn: {
-    padding: 8,
+  snoozeCount: {
+    fontSize: FontSize.xs,
+    color: Colors.textDark,
+  },
+
+  // Actions
+  cardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     marginLeft: Spacing.sm,
   },
+  actionBtn: {
+    padding: 6,
+  },
+
   // States
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyState: { alignItems: "center", paddingTop: 80 },

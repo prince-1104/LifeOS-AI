@@ -1,0 +1,19 @@
+# EAS Build ignore patterns
+# Exclude everything outside the mobile directory
+../backend
+../frontend
+../.git
+../.pytest_cache
+../architecture.md
+../README.md
+
+# Mobile-specific ignores
+node_modules
+.expo
+dist
+web-build
+*.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db

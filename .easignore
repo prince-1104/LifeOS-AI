@@ -1,0 +1,21 @@
+# EAS Build — ignore files not needed for the mobile build
+backend/.venv
+backend/__pycache__
+backend/.pytest_cache
+backend/node_modules
+backend/timing.log
+backend/out*.txt
+backend/out*.json
+backend/test_output.txt
+backend/test_list_out.txt
+
+frontend/node_modules
+frontend/.next
+
+.git
+.pytest_cache
+
+# OS files
+.DS_Store
+Thumbs.db
+*.pyc

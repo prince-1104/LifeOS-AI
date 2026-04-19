@@ -14,8 +14,8 @@ const tabs: {
   { name: "chat", title: "Chat", icon: "chatbubble-ellipses", iconOutline: "chatbubble-ellipses-outline" },
   { name: "dashboard", title: "Dashboard", icon: "grid", iconOutline: "grid-outline" },
   { name: "finance", title: "Finance", icon: "wallet", iconOutline: "wallet-outline" },
-  { name: "memories", title: "Memories", icon: "bulb", iconOutline: "bulb-outline" },
   { name: "reminders", title: "Reminders", icon: "alarm", iconOutline: "alarm-outline" },
+  { name: "profile", title: "Profile", icon: "person-circle", iconOutline: "person-circle-outline" },
 ];
 
 export default function TabsLayout() {
@@ -57,6 +57,13 @@ export default function TabsLayout() {
           }}
         />
       ))}
+      {/* Hide the old memories tab file if it still exists */}
+      <Tabs.Screen
+        name="memories"
+        options={{
+          href: null, // hide from tab bar
+        }}
+      />
     </Tabs>
   );
 }

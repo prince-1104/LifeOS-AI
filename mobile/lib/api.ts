@@ -80,6 +80,7 @@ export type ReminderRow = {
   task: string;
   reminder_time: string;
   status: string;
+  snooze_count: number;
 };
 
 export type TransactionRow = {
@@ -99,7 +100,93 @@ export type MemoryRow = {
   created_at: string;
 };
 
+// ── Profile Types ───────────────────────────────────────────────────────
+
+export type UserProfile = {
+  id: string;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  image_url: string | null;
+  age: number | null;
+  gender: string | null;
+  address: string | null;
+  hobbies: string | null;
+  profile_complete: boolean;
+};
+
+export type ProfileUpdateParams = {
+  first_name?: string;
+  last_name?: string;
+  age?: number;
+  gender?: string;
+  address?: string;
+  hobbies?: string;
+};
+
+// ── Subscription & Plans Types ──────────────────────────────────────────
+
+export type PlanInfo = {
+  name: string;
+  display_name: string;
+  price_inr_monthly: number;
+  price_inr_yearly: number;
+  daily_requests: number;
+  memory_writes_per_day: number;
+  memory_storage_limit: number;
+  reminders_per_day: number;
+  voice_input: boolean;
+  premium_tts: boolean;
+  long_term_reminder: boolean;
+};
+
+export type UsageSnapshot = {
+  requests_today: number;
+  memory_writes_today: number;
+  reminders_today: number;
+  monthly_cost_inr: number;
+};
+
+export type SubscriptionStatus = {
+  plan: PlanInfo;
+  usage: UsageSnapshot;
+  plan_start_date: string | null;
+  plan_end_date: string | null;
+  is_active: boolean;
+  cashfree_subscription_id: string | null;
+};
+
+export type ValidatePromoParams = {
+  promo_code: string;
+  plan_id?: string;
+  billing_cycle?: "monthly" | "yearly";
+};
+
+export type ValidatePromoResponse = {
+  valid: boolean;
+  discount_percent: number;
+  final_amount_inr: number;
+  message: string;
+  applicable_plans?: string[];
+};
+
+export type CreateSubscriptionParams = {
+  plan_id: string;
+  billing_cycle: "monthly" | "yearly";
+  return_url: string;
+  promo_code?: string;
+};
+
+export type CreateSubscriptionResponse = {
+  subscription_id: string;
+  authorization_link: string;
+  payment_session_id: string;
+  cashfree_env: "sandbox" | "production";
+};
+
 // ── API calls ───────────────────────────────────────────────────────────
+
 export async function processInput(
   getToken: GetToken,
   params: { input: string; userTimezone?: string }
@@ -133,6 +220,8 @@ export async function getDashboard(
   return res.json() as Promise<DashboardPayload>;
 }
 
+// ── Reminders ───────────────────────────────────────────────────────────
+
 export async function getReminders(
   getToken: GetToken
 ): Promise<ReminderRow[]> {
@@ -143,23 +232,13 @@ export async function getReminders(
   return data.items;
 }
 
-export async function getTransactions(
+export async function getDueReminders(
   getToken: GetToken
-): Promise<TransactionRow[]> {
+): Promise<ReminderRow[]> {
   const headers = await bearerAuth(getToken);
-  const res = await fetch(`${getApiBase()}/transactions`, { headers });
+  const res = await fetch(`${getApiBase()}/reminders/due`, { headers });
   if (!res.ok) throw new Error(await res.text());
-  const data = (await res.json()) as { items: TransactionRow[] };
-  return data.items;
-}
-
-export async function getMemories(
-  getToken: GetToken
-): Promise<MemoryRow[]> {
-  const headers = await bearerAuth(getToken);
-  const res = await fetch(`${getApiBase()}/memories`, { headers });
-  if (!res.ok) throw new Error(await res.text());
-  const data = (await res.json()) as { items: MemoryRow[] };
+  const data = (await res.json()) as { items: ReminderRow[] };
   return data.items;
 }
 
@@ -175,6 +254,42 @@ export async function deleteReminder(
   if (!res.ok) throw new Error(await res.text());
 }
 
+export async function markReminderDone(
+  getToken: GetToken,
+  id: string
+): Promise<void> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${getApiBase()}/reminders/${id}/done`, {
+    method: "PATCH",
+    headers,
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function snoozeReminder(
+  getToken: GetToken,
+  id: string
+): Promise<void> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${getApiBase()}/reminders/${id}/snooze`, {
+    method: "PATCH",
+    headers,
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+// ── Transactions ────────────────────────────────────────────────────────
+
+export async function getTransactions(
+  getToken: GetToken
+): Promise<TransactionRow[]> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${getApiBase()}/transactions`, { headers });
+  if (!res.ok) throw new Error(await res.text());
+  const data = (await res.json()) as { items: TransactionRow[] };
+  return data.items;
+}
+
 export async function deleteTransaction(
   getToken: GetToken,
   id: string
@@ -187,6 +302,32 @@ export async function deleteTransaction(
   if (!res.ok) throw new Error(await res.text());
 }
 
+export async function updateTransactionDate(
+  getToken: GetToken,
+  id: string,
+  event_time: string
+): Promise<void> {
+  const headers = await jsonAuth(getToken);
+  const res = await fetch(`${getApiBase()}/transactions/${id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ event_time }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+// ── Memories ────────────────────────────────────────────────────────────
+
+export async function getMemories(
+  getToken: GetToken
+): Promise<MemoryRow[]> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${getApiBase()}/memories`, { headers });
+  if (!res.ok) throw new Error(await res.text());
+  const data = (await res.json()) as { items: MemoryRow[] };
+  return data.items;
+}
+
 export async function deleteMemory(
   getToken: GetToken,
   id: string
@@ -197,4 +338,74 @@ export async function deleteMemory(
     headers,
   });
   if (!res.ok) throw new Error(await res.text());
+}
+
+// ── Profile ─────────────────────────────────────────────────────────────
+
+export async function getProfile(
+  getToken: GetToken
+): Promise<UserProfile> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${getApiBase()}/user/profile`, { headers });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<UserProfile>;
+}
+
+export async function updateProfile(
+  getToken: GetToken,
+  params: ProfileUpdateParams
+): Promise<UserProfile> {
+  const headers = await jsonAuth(getToken);
+  const res = await fetch(`${getApiBase()}/user/profile`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<UserProfile>;
+}
+
+// ── Subscription & Plans ────────────────────────────────────────────────
+
+export async function getPlans(): Promise<PlanInfo[]> {
+  const res = await fetch(`${getApiBase()}/subscription/plans`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<PlanInfo[]>;
+}
+
+export async function getSubscriptionStatus(
+  getToken: GetToken
+): Promise<SubscriptionStatus> {
+  const headers = await bearerAuth(getToken);
+  const res = await fetch(`${getApiBase()}/subscription/status`, { headers });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<SubscriptionStatus>;
+}
+
+export async function validatePromoCode(
+  getToken: GetToken,
+  params: ValidatePromoParams
+): Promise<ValidatePromoResponse> {
+  const headers = await jsonAuth(getToken);
+  const res = await fetch(`${getApiBase()}/payments/validate-promo`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<ValidatePromoResponse>;
+}
+
+export async function createSubscription(
+  getToken: GetToken,
+  params: CreateSubscriptionParams
+): Promise<CreateSubscriptionResponse> {
+  const headers = await jsonAuth(getToken);
+  const res = await fetch(`${getApiBase()}/payments/create-subscription`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<CreateSubscriptionResponse>;
 }

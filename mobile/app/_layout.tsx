@@ -23,9 +23,9 @@ const tokenCache = {
   },
 };
 
-// 🔑 Replace with your Clerk publishable key
+// 🔑 Clerk publishable key (same Clerk app as the web frontend)
 const CLERK_PUBLISHABLE_KEY =
-  "pk_test_REPLACE_WITH_YOUR_KEY";
+  "pk_test_c3Rhci1tdWxlLTE1LmNsZXJrLmFjY291bnRzLmRldiQ";
 
 function AuthGate() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -64,6 +64,27 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="billing"
+            options={{
+              animation: "slide_from_right",
+              presentation: "card",
+            }}
+          />
+          <Stack.Screen
+            name="pricing"
+            options={{
+              animation: "slide_from_right",
+              presentation: "card",
+            }}
+          />
+          <Stack.Screen
+            name="memories"
+            options={{
+              animation: "slide_from_right",
+              presentation: "card",
+            }}
+          />
           <Stack.Screen
             name="+not-found"
             options={{ headerShown: true, title: "Not Found" }}

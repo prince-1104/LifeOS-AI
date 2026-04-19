@@ -175,6 +175,28 @@ export function Sidebar({
         </div>
       )}
 
+      {/* Download Mobile App */}
+      <div className="px-4 pb-4">
+        <a
+          href="https://expo.dev/artifacts/eas/6iiBihPvpAZKBLsnCcHWJQ.apk"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group relative flex items-center justify-between overflow-hidden rounded-xl border border-indigo-500/20 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 px-4 py-3 transition hover:border-indigo-500/40 hover:from-indigo-500/20 hover:to-purple-500/20"
+        >
+          <div className="flex items-center gap-2 text-sm font-medium text-indigo-300">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download App
+          </div>
+          <span className="rounded-md bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-bold text-indigo-400 border border-indigo-500/30">
+            APK
+          </span>
+        </a>
+      </div>
+
       <div className="border-t border-white/[0.06] p-4">
         <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
           <div className="min-w-0">
