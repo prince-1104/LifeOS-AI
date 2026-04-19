@@ -105,7 +105,7 @@ export function Sidebar({
           <Image src="/logo.png" alt="Cortexa AI" width={32} height={32} className="rounded-lg" />
           Cortexa AI
         </Link>
-        <p className="mt-1 pl-[42px] text-xs text-zinc-500">Your day, understood.</p>
+        <p className="mt-1 pl-[42px] text-xs text-zinc-500">Hello, {label}</p>
       </div>
       <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
         <div className="flex flex-col gap-0.5">
