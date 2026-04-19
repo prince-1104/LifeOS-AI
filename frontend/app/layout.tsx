@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react';
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -43,6 +44,7 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <ClerkProvider>{children}</ClerkProvider>
+        <Analytics />
       </body>
     </html>
   );

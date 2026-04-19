@@ -12,6 +12,7 @@
     "@cashfreepayments/cashfree-js": "^1.0.7",
     "@clerk/nextjs": "^7.0.12",
     "@heroicons/react": "^2.2.0",
+    "@vercel/analytics": "^2.0.1",
     "next": "16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
