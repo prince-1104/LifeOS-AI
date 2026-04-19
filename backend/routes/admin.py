@@ -492,3 +492,27 @@ async def create_promo_code(
         expires_at=promo.expires_at,
         created_at=promo.created_at
     )
+
+@router.get("/promos", response_model=list[PromoCodeResponse])
+async def get_promo_codes(
+    admin_id: str = Depends(get_admin_session),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all promo codes."""
+    result = await db.execute(select(PromoCode).order_by(PromoCode.created_at.desc()))
+    promos = result.scalars().all()
+    return [
+        PromoCodeResponse(
+            id=str(p.id),
+            code=p.code,
+            discount_percent=p.discount_percent,
+            max_uses=p.max_uses,
+            times_used=p.times_used,
+            min_amount=p.min_amount,
+            applicable_plans=p.applicable_plans,
+            is_active=p.is_active,
+            expires_at=p.expires_at,
+            created_at=p.created_at
+        ) for p in promos
+    ]
+

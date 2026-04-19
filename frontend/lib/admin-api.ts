@@ -202,3 +202,48 @@ export async function getTopUsers(limit = 10): Promise<TopUser[]> {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+// ── Promo Codes ───────────────────────────────────────────────────────
+
+export type PromoCode = {
+  id: string;
+  code: string;
+  discount_percent: number;
+  max_uses: number | null;
+  times_used: number;
+  min_amount: number | null;
+  applicable_plans: string | null;
+  is_active: number;
+  expires_at: string | null;
+  created_at: string;
+};
+
+export type CreatePromoCodeParams = {
+  code: string;
+  discount_percent: number;
+  max_uses?: number | null;
+  min_amount?: number | null;
+  applicable_plans?: string | null;
+  expires_at?: string | null;
+};
+
+export async function getPromoCodes(): Promise<PromoCode[]> {
+  const headers = await adminHeaders();
+  const res = await fetch(`${base()}/admin/promos`, { headers });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createPromoCode(params: CreatePromoCodeParams): Promise<PromoCode> {
+  const headers = await adminHeaders();
+  const res = await fetch(`${base()}/admin/promos`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
