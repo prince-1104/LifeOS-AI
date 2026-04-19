@@ -63,6 +63,7 @@ class AdminUserRow(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     image_url: str | None = None
+    plan: str | None = None
     created_at: str | None = None
     total_tokens: int = 0
     total_requests: int = 0
@@ -111,6 +112,7 @@ class TopUserRow(BaseModel):
     email: str | None = None
     first_name: str | None = None
     last_name: str | None = None
+    plan: str | None = None
     total_tokens: int
     total_requests: int
     cost: float

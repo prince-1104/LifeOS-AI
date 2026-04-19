@@ -99,6 +99,7 @@ export type AdminUser = {
   first_name: string | null;
   last_name: string | null;
   image_url: string | null;
+  plan: string | null;
   created_at: string | null;
   total_tokens: number;
   total_requests: number;
@@ -141,6 +142,7 @@ export type TopUser = {
   email: string | null;
   first_name: string | null;
   last_name: string | null;
+  plan: string | null;
   total_tokens: number;
   total_requests: number;
   cost: number;

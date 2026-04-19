@@ -40,6 +40,9 @@ export default function UsersTable({ users, loading }: Props) {
                 <th className="text-left py-3 px-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
                   User
                 </th>
+                <th className="text-left py-3 px-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                  Plan
+                </th>
                 <th className="text-right py-3 px-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Requests
                 </th>
@@ -81,6 +84,15 @@ export default function UsersTable({ users, loading }: Props) {
                           )}
                         </div>
                       </div>
+                    </td>
+                    <td className="py-3 px-3 text-left">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+                        user.plan === 'free' || !user.plan
+                          ? 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' 
+                          : 'bg-teal-500/10 text-teal-400 border-teal-500/20'
+                      }`}>
+                        {(user.plan || "Free").toUpperCase().replace('_', ' ')}
+                      </span>
                     </td>
                     <td className="py-3 px-3 text-right text-slate-300 font-mono">
                       {user.total_requests.toLocaleString()}
