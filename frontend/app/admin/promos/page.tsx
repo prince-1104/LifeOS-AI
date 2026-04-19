@@ -231,23 +231,33 @@ export default function PromosPage() {
                         <span className="inline-flex items-center rounded-full bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-400 border border-rose-500/20">Inactive</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <button 
-                        onClick={() => handleToggle(p.id)}
-                        className={`text-xs px-2 py-1 rounded transition border ${
-                            p.is_active 
-                                ? "text-amber-400 hover:text-amber-300 border-amber-500/20 hover:bg-amber-500/10"
-                                : "text-emerald-400 hover:text-emerald-300 border-emerald-500/20 hover:bg-emerald-500/10"
-                        }`}
-                      >
-                        {p.is_active ? "Deactivate" : "Activate"}
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(p.id)}
-                        className="text-xs text-rose-400 hover:text-rose-300 border border-rose-500/20 px-2 py-1 rounded hover:bg-rose-500/10 transition"
-                      >
-                        Delete
-                      </button>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-3 cursor-pointer select-none">
+                        <button
+                          onClick={() => handleToggle(p.id)}
+                          role="switch"
+                          aria-checked={p.is_active ? "true" : "false"}
+                          title={p.is_active ? "Deactivate Promo Code" : "Activate Promo Code"}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-[#111111] ${
+                              p.is_active ? 'bg-indigo-500' : 'bg-zinc-700'
+                          }`}
+                        >
+                          <span className="sr-only">Toggle Active status</span>
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                p.is_active ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(p.id)}
+                          className="text-xs text-rose-400 hover:text-rose-300 border border-rose-500/20 px-2 py-1 rounded hover:bg-rose-500/10 transition"
+                          title="Delete Promo Code"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
