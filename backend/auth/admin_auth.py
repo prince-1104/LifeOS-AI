@@ -6,7 +6,9 @@ a 6-digit reset code in the admin_otp table (logged to the console when
 SMTP is not configured) and lets the admin set a new password.
 """
 
+import hashlib
 import logging
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -31,7 +33,7 @@ async def verify_admin_credentials(
 ) -> bool:
     """Check email + password.
 
-    Priority: DB override (set via reset flow) → config default.
+    Priority: DB override (hashed) → config default.
     """
     settings = get_settings()
     if email != settings.ADMIN_EMAIL:
@@ -40,10 +42,19 @@ async def verify_admin_credentials(
     # Check DB override first
     stmt = select(AdminConfig.value).where(AdminConfig.key == ADMIN_PASSWORD_KEY)
     result = await db.execute(stmt)
-    db_password = result.scalar_one_or_none()
+    db_password_hash = result.scalar_one_or_none()
 
-    expected = db_password if db_password is not None else settings.ADMIN_PASSWORD
-    return password == expected
+    if db_password_hash is not None:
+        try:
+            salt_hex, stored_hash = db_password_hash.split(":")
+            salt = bytes.fromhex(salt_hex)
+            pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
+            return pwd_hash.hex() == stored_hash
+        except Exception:
+            return False
+
+    # Fallback to plain environment variable (if not set in DB yet)
+    return password == settings.ADMIN_PASSWORD
 
 
 # ── Forgot-Password Flow ─────────────────────────────────────────────
@@ -92,15 +103,19 @@ async def verify_reset_code(db: AsyncSession, email: str, code: str) -> bool:
 
 
 async def set_admin_password(db: AsyncSession, new_password: str) -> None:
-    """Persist a new admin password in the DB (overrides config default)."""
+    """Persist a new admin password block securely in the DB (overrides config default)."""
     from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    salt = os.urandom(16)
+    pwd_hash = hashlib.pbkdf2_hmac("sha256", new_password.encode("utf-8"), salt, 100000)
+    hashed_value = f"{salt.hex()}:{pwd_hash.hex()}"
 
     stmt = pg_insert(AdminConfig).values(
         key=ADMIN_PASSWORD_KEY,
-        value=new_password,
+        value=hashed_value,
     ).on_conflict_do_update(
         index_elements=["key"],
-        set_={"value": new_password},
+        set_={"value": hashed_value},
     )
     await db.execute(stmt)
     await db.commit()
