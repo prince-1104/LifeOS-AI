@@ -138,7 +138,7 @@ def _get_plan_price(plan_name: str, billing_cycle: str) -> int:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  CREATE SUBSCRIPTION
+#  CREATE PAYMENT ORDER  (uses Cashfree Orders API — universally available)
 # ═══════════════════════════════════════════════════════════════════════
 
 
@@ -149,12 +149,15 @@ async def create_subscription(
     user_id: str = Depends(get_authenticated_user_id),
 ):
     """
-    Create a Cashfree subscription (mandate) for the selected plan.
+    Create a Cashfree payment order for the selected plan.
+
+    Uses the Orders API (/pg/orders) which is universally available,
+    unlike the Subscriptions API which requires special activation.
 
     Flow:
-    1. Create a plan on Cashfree (if not already cached)
-    2. Create a subscription with customer details
-    3. Return the authorization link for the customer
+    1. Create an order on Cashfree
+    2. Return the payment link for the customer to pay
+    3. Webhook confirms payment → activate plan
     """
     import re
     import uuid
@@ -177,109 +180,85 @@ async def create_subscription(
         headers = _cashfree_headers()
         price = _get_plan_price(req.plan_id, req.billing_cycle)
 
-        # Cashfree requires EXACT uppercase interval types
-        interval_type = "MONTH" if req.billing_cycle == "monthly" else "YEAR"
+        # Generate unique order ID
+        order_id = f"order_{user_id[:8]}_{uuid.uuid4().hex[:8]}"
 
-        # ── Step 1: Create plan on Cashfree ───────────────────────────────
-        cf_plan_id = f"{plan.name}_{req.billing_cycle}"
+        # Clean phone to exactly 10 digits
+        phone = user.phone or ""
+        clean_phone = re.sub(r'\D', '', phone)
+        if len(clean_phone) > 10:
+            clean_phone = clean_phone[-10:]
+        if len(clean_phone) < 10:
+            clean_phone = "9999999999"
 
-        plan_payload = {
-            "plan_id": cf_plan_id,
-            # Cashfree plan_name only allows alphanumerics and a few special chars
-            "plan_name": f"{plan.name} - {req.billing_cycle}",
-            "plan_type": "PERIODIC",
-            "plan_currency": "INR",
-            "plan_recurring_amount": float(price),
-            "plan_max_amount": float(price * 2),
-            "plan_max_cycles": 120 if req.billing_cycle == "monthly" else 10,
-            "plan_intervals": 1,
-            "plan_interval_type": interval_type,
+        return_url = req.return_url or "https://cortexa.doptonin.online/billing"
+
+        order_payload = {
+            "order_id": order_id,
+            "order_amount": float(price),
+            "order_currency": "INR",
+            "customer_details": {
+                "customer_id": re.sub(r'[^a-zA-Z0-9_\-.]', '', user_id[:50]) or "user",
+                "customer_phone": clean_phone,
+                "customer_email": user.email or "user@example.com",
+                "customer_name": f"{user.first_name or ''} {user.last_name or ''}".strip() or "User",
+            },
+            "order_meta": {
+                "return_url": f"{return_url}?order_id={order_id}",
+            },
+            "order_note": f"Plan: {plan.display_name} ({req.billing_cycle})",
+            "order_tags": {
+                "app_user_id": user_id,
+                "plan_name": plan.name,
+                "billing_cycle": req.billing_cycle,
+            },
         }
 
-        print(f"[CASHFREE] Create plan payload: {plan_payload}", flush=True)
+        print(f"[CASHFREE] Create order payload: {order_payload}", flush=True)
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # Try to create the plan (ignore 409 if already exists)
-            plan_resp = await client.post(
-                f"{base_url}/plans",
+            resp = await client.post(
+                f"{base_url}/orders",
                 headers=headers,
-                json=plan_payload,
+                json=order_payload,
             )
-            print(f"[CASHFREE] Create plan response: {plan_resp.status_code} {plan_resp.text[:1000]}", flush=True)
+            print(f"[CASHFREE] Create order response: {resp.status_code} {resp.text[:1000]}", flush=True)
 
-            if plan_resp.status_code not in (200, 201, 409):
-                full_resp = plan_resp.text[:500]
-                print(f"[CASHFREE] Plan creation FAILED: {full_resp}", flush=True)
+            if resp.status_code not in (200, 201):
+                full_resp = resp.text[:500]
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Cashfree plan error: {full_resp}",
+                    detail=f"Cashfree order error: {full_resp}",
                 )
 
-            # ── Step 2: Create subscription ───────────────────────────────
-            sub_id = f"sub_{user_id[:8]}_{uuid.uuid4().hex[:8]}"
+            order_data = resp.json()
 
-            # Clean phone to exactly 10 digits
-            phone = user.phone or ""
-            clean_phone = re.sub(r'\D', '', phone)
-            if len(clean_phone) > 10:
-                clean_phone = clean_phone[-10:]
-            if len(clean_phone) < 10:
-                clean_phone = "9999999999"
-
-            sub_payload = {
-                "subscription_id": sub_id,
-                "plan_id": cf_plan_id,
-                "customer_details": {
-                    "customer_id": re.sub(r'[^a-zA-Z0-9_\-.]', '', user_id[:50]),
-                    "customer_phone": clean_phone,
-                    "customer_email": user.email or "user@example.com",
-                    "customer_name": f"{user.first_name or ''} {user.last_name or ''}".strip() or "User",
-                },
-                "subscription_meta": {
-                    "return_url": req.return_url or "https://cortexa.doptonin.online/billing",
-                },
-                "subscription_tags": {
-                    "app_user_id": user_id,
-                    "plan_name": plan.name,
-                    "billing_cycle": req.billing_cycle,
-                },
-            }
-
-            print(f"[CASHFREE] Create subscription payload: {sub_payload}", flush=True)
-
-            sub_resp = await client.post(
-                f"{base_url}/subscriptions",
-                headers=headers,
-                json=sub_payload,
-            )
-            print(f"[CASHFREE] Create subscription response: {sub_resp.status_code} {sub_resp.text[:1000]}", flush=True)
-
-            if sub_resp.status_code not in (200, 201):
-                full_resp = sub_resp.text[:500]
-                print(f"[CASHFREE] Subscription creation FAILED: {full_resp}", flush=True)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Cashfree subscription error: {full_resp}",
-                )
-
-            sub_data = sub_resp.json()
-            auth_link = (
-                sub_data.get("subscription_payment_link")
-                or sub_data.get("data", {}).get("authorization_link", "")
-                or sub_data.get("authorization_link", "")
+            # Get the payment link — Cashfree returns it in different places
+            payment_link = (
+                order_data.get("payment_link")
+                or order_data.get("payments", {}).get("url")
+                or ""
             )
 
-        # Save subscription ID to user record
-        user.stripe_subscription_id = sub_id
+            # If no direct payment link, construct from payment_session_id
+            if not payment_link:
+                session_id = order_data.get("payment_session_id", "")
+                if session_id:
+                    # Cashfree hosted checkout URL
+                    env_prefix = "sandbox" if "sandbox" in base_url else "app"
+                    payment_link = f"https://{env_prefix}.cashfree.com/pg/orders/{order_id}/pay?payment_session_id={session_id}"
+
+        # Save order ID to user record for webhook matching
+        user.stripe_subscription_id = order_id  # reusing column for cashfree order id
         await db.commit()
 
         return CreateSubscriptionResponse(
-            subscription_id=sub_id,
-            authorization_link=auth_link,
+            subscription_id=order_id,
+            authorization_link=payment_link,
         )
 
     except HTTPException:
-        raise  # Re-raise our own HTTPExceptions
+        raise
     except Exception as e:
         print(f"[CASHFREE] UNEXPECTED ERROR: {str(e)}", flush=True)
         import traceback; traceback.print_exc()
@@ -293,7 +272,6 @@ def _extract_cashfree_error(resp: httpx.Response, default: str) -> str:
     """Extract the most useful error message from a Cashfree API error response."""
     try:
         data = resp.json()
-        # Cashfree may use 'message', 'detail', or nested structures
         return (
             data.get("message")
             or data.get("detail")
@@ -318,9 +296,9 @@ async def cashfree_webhook(
     Handle Cashfree webhook notifications.
 
     Events handled:
-    - SUBSCRIPTION_NEW_PAYMENT_CHARGED → plan active, extend dates
-    - SUBSCRIPTION_STATUS_CHANGED → activate/pause/cancel
-    - PAYMENT_SUCCESS_WEBHOOK → one-time payment confirmation
+    - PAYMENT_SUCCESS_WEBHOOK → payment completed, activate plan
+    - ORDER_PAID → order payment confirmed
+    - SUBSCRIPTION_* → legacy subscription events (kept for compatibility)
     """
     settings = get_settings()
     payload = await request.body()
@@ -335,7 +313,7 @@ async def cashfree_webhook(
             hashlib.sha256,
         ).hexdigest()
         if not hmac.compare_digest(signature, expected):
-            logger.warning("Cashfree webhook signature mismatch")
+            print("[CASHFREE] Webhook signature mismatch", flush=True)
             raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     try:
@@ -346,37 +324,78 @@ async def cashfree_webhook(
     event_type = data.get("type") or data.get("event", "")
     event_data = data.get("data", {})
 
-    logger.info("Cashfree webhook: %s", event_type)
+    print(f"[CASHFREE] Webhook received: {event_type}", flush=True)
+    print(f"[CASHFREE] Webhook data: {json.dumps(event_data)[:500]}", flush=True)
 
-    if event_type in ("SUBSCRIPTION_PAYMENT_CHARGED", "SUBSCRIPTION_NEW_PAYMENT_CHARGED"):
+    # Handle order-based payment events
+    if event_type in ("PAYMENT_SUCCESS_WEBHOOK", "ORDER_PAID"):
+        await _handle_order_paid(db, event_data)
+
+    # Handle legacy subscription events
+    elif event_type in ("SUBSCRIPTION_PAYMENT_CHARGED", "SUBSCRIPTION_NEW_PAYMENT_CHARGED"):
         await _handle_payment_charged(db, event_data)
 
     elif event_type == "SUBSCRIPTION_STATUS_CHANGED":
         await _handle_subscription_status_changed(db, event_data)
 
-    elif event_type == "PAYMENT_SUCCESS_WEBHOOK":
-        # One-time order payment success (if used for non-subscription payments)
-        logger.info("Payment success webhook received")
-
     return {"status": "ok"}
 
 
+async def _handle_order_paid(db: AsyncSession, event_data: dict):
+    """Handle successful order payment — activate/renew plan."""
+    order = event_data.get("order", {})
+    order_id = order.get("order_id", "")
+    tags = order.get("order_tags", {})
+    plan_name = tags.get("plan_name", "")
+    billing_cycle = tags.get("billing_cycle", "monthly")
+
+    if not order_id:
+        print("[CASHFREE] Order paid webhook without order_id", flush=True)
+        return
+
+    # Find user by order ID (stored in stripe_subscription_id)
+    stmt = select(User).where(User.stripe_subscription_id == order_id)
+    user = (await db.execute(stmt)).scalar_one_or_none()
+    if not user:
+        # Also try via user_id from tags
+        app_user_id = tags.get("app_user_id", "")
+        if app_user_id:
+            stmt2 = select(User).where(User.id == app_user_id)
+            user = (await db.execute(stmt2)).scalar_one_or_none()
+
+    if not user:
+        print(f"[CASHFREE] No user found for order {order_id}", flush=True)
+        return
+
+    from dateutil.relativedelta import relativedelta
+    now = datetime.now(timezone.utc)
+
+    if plan_name and plan_name in PLANS:
+        user.plan = plan_name
+    user.plan_start_date = now
+
+    if billing_cycle == "yearly":
+        user.plan_end_date = now + relativedelta(years=1)
+    else:
+        user.plan_end_date = now + relativedelta(months=1)
+
+    await db.commit()
+    print(f"[CASHFREE] Plan '{user.plan}' activated for user {user.id} (order: {order_id})", flush=True)
+
+
 async def _handle_payment_charged(db: AsyncSession, event_data: dict):
-    """Handle successful subscription charge — activate/renew plan."""
+    """Handle successful subscription charge — activate/renew plan (legacy)."""
     subscription = event_data.get("subscription", {})
     sub_id = subscription.get("subscription_id", "")
     tags = subscription.get("subscription_tags", {})
     plan_name = tags.get("plan_name", "")
 
     if not sub_id:
-        logger.warning("Payment charged webhook without subscription_id")
         return
 
-    # Find user by subscription ID
     stmt = select(User).where(User.stripe_subscription_id == sub_id)
     user = (await db.execute(stmt)).scalar_one_or_none()
     if not user:
-        logger.warning("No user found for subscription %s", sub_id)
         return
 
     now = datetime.now(timezone.utc)
@@ -385,7 +404,6 @@ async def _handle_payment_charged(db: AsyncSession, event_data: dict):
     if not user.plan_start_date:
         user.plan_start_date = now
 
-    # Extend plan_end_date by cycle
     from dateutil.relativedelta import relativedelta
     billing_cycle = tags.get("billing_cycle", "monthly")
     if billing_cycle == "yearly":
@@ -394,11 +412,11 @@ async def _handle_payment_charged(db: AsyncSession, event_data: dict):
         user.plan_end_date = now + relativedelta(months=1)
 
     await db.commit()
-    logger.info("Plan '%s' activated/renewed for user %s (sub: %s)", user.plan, user.id, sub_id)
+    print(f"[CASHFREE] Subscription plan '{user.plan}' renewed for user {user.id}", flush=True)
 
 
 async def _handle_subscription_status_changed(db: AsyncSession, event_data: dict):
-    """Handle subscription lifecycle changes."""
+    """Handle subscription lifecycle changes (legacy)."""
     subscription = event_data.get("subscription", {})
     sub_id = subscription.get("subscription_id", "")
     new_status = subscription.get("subscription_status", "")
@@ -409,27 +427,20 @@ async def _handle_subscription_status_changed(db: AsyncSession, event_data: dict
     stmt = select(User).where(User.stripe_subscription_id == sub_id)
     user = (await db.execute(stmt)).scalar_one_or_none()
     if not user:
-        logger.warning("No user found for subscription %s", sub_id)
         return
 
     if new_status in ("CANCELLED", "EXPIRED", "COMPLETED"):
         user.plan = "free"
         user.plan_end_date = datetime.now(timezone.utc)
         await db.commit()
-        logger.info("User %s downgraded to free (subscription %s: %s)", user.id, sub_id, new_status)
 
     elif new_status == "ACTIVE":
-        # Subscription activated after mandate authorization
         tags = subscription.get("subscription_tags", {})
         plan_name = tags.get("plan_name", "")
         if plan_name and plan_name in PLANS:
             user.plan = plan_name
             user.plan_start_date = datetime.now(timezone.utc)
             await db.commit()
-            logger.info("User %s plan activated: %s", user.id, plan_name)
-
-    elif new_status == "PAUSED":
-        logger.info("Subscription %s paused for user %s", sub_id, user.id)
 
 
 # ═══════════════════════════════════════════════════════════════════════
