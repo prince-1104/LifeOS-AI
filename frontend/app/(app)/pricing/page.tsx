@@ -46,26 +46,55 @@ export default function PricingPage() {
         return_url: `${window.location.origin}/billing`,
       });
 
-      // Use payment_session_id with Cashfree JS SDK if available
+      console.log("[Payment] Backend response:", res);
+
       if (res.payment_session_id) {
-        const cashfreeMode = process.env.NEXT_PUBLIC_CASHFREE_ENV === "production" ? "production" : "sandbox";
-        const cashfree = await loadCashfree({ mode: cashfreeMode });
-        
-        const checkoutOptions = {
-          paymentSessionId: res.payment_session_id,
-          redirectTarget: "_self" as const,
-        };
-        
-        cashfree.checkout(checkoutOptions);
+        try {
+          // Determine mode based on env variable
+          const cashfreeMode = process.env.NEXT_PUBLIC_CASHFREE_ENV === "production" 
+            ? "production" as const 
+            : "sandbox" as const;
+          
+          console.log("[Payment] Initializing Cashfree SDK in", cashfreeMode, "mode");
+          const cashfree = await loadCashfree({ mode: cashfreeMode });
+
+          console.log("[Payment] Opening checkout with session:", res.payment_session_id.substring(0, 20) + "...");
+          
+          const result = await cashfree.checkout({
+            paymentSessionId: res.payment_session_id,
+            redirectTarget: "_modal",
+          });
+
+          console.log("[Payment] Checkout result:", result);
+
+          if (result.error) {
+            console.error("[Payment] Checkout error:", result.error);
+            setError(`Payment failed: ${result.error.message || "Unknown error"}`);
+            setProcessing(false);
+          } else if (result.redirect) {
+            // User was redirected to complete payment — will come back via return_url
+            console.log("[Payment] Redirecting...");
+          } else if (result.paymentDetails) {
+            // Payment completed in modal
+            console.log("[Payment] Payment completed:", result.paymentDetails);
+            router.push("/billing?payment=success");
+          }
+        } catch (sdkError: any) {
+          console.error("[Payment] SDK error:", sdkError);
+          setError(`Checkout failed: ${sdkError?.message || "Could not open payment page"}`);
+          setProcessing(false);
+        }
       } else if (res.authorization_link) {
-        // Fallback: direct link if Cashfree returned one
+        // Fallback: direct link
+        console.log("[Payment] Using direct link:", res.authorization_link);
         window.location.href = res.authorization_link;
       } else {
-        setError("No payment link received. Please try again.");
+        setError("No payment session received. Please try again.");
         setProcessing(false);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to initiate subscription");
+      console.error("[Payment] API error:", e);
+      setError(e instanceof Error ? e.message : "Failed to initiate payment");
       setProcessing(false);
     }
   };
