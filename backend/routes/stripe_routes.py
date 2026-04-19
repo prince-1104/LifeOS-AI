@@ -196,7 +196,7 @@ async def create_subscription(
             "plan_interval_type": interval_type,
         }
 
-        logger.info("Cashfree create plan payload: %s", plan_payload)
+        print(f"[CASHFREE] Create plan payload: {plan_payload}", flush=True)
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Try to create the plan (ignore 409 if already exists)
@@ -205,13 +205,14 @@ async def create_subscription(
                 headers=headers,
                 json=plan_payload,
             )
-            logger.info("Cashfree create plan response: %s %s", plan_resp.status_code, plan_resp.text[:500])
+            print(f"[CASHFREE] Create plan response: {plan_resp.status_code} {plan_resp.text[:1000]}", flush=True)
 
             if plan_resp.status_code not in (200, 201, 409):
-                err_detail = _extract_cashfree_error(plan_resp, "Failed to create subscription plan.")
+                full_resp = plan_resp.text[:500]
+                print(f"[CASHFREE] Plan creation FAILED: {full_resp}", flush=True)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=err_detail,
+                    detail=f"Cashfree plan error: {full_resp}",
                 )
 
             # ── Step 2: Create subscription ───────────────────────────────
@@ -244,20 +245,21 @@ async def create_subscription(
                 },
             }
 
-            logger.info("Cashfree create subscription payload: %s", sub_payload)
+            print(f"[CASHFREE] Create subscription payload: {sub_payload}", flush=True)
 
             sub_resp = await client.post(
                 f"{base_url}/subscriptions",
                 headers=headers,
                 json=sub_payload,
             )
-            logger.info("Cashfree create subscription response: %s %s", sub_resp.status_code, sub_resp.text[:500])
+            print(f"[CASHFREE] Create subscription response: {sub_resp.status_code} {sub_resp.text[:1000]}", flush=True)
 
             if sub_resp.status_code not in (200, 201):
-                err_detail = _extract_cashfree_error(sub_resp, "Failed to create subscription.")
+                full_resp = sub_resp.text[:500]
+                print(f"[CASHFREE] Subscription creation FAILED: {full_resp}", flush=True)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=err_detail,
+                    detail=f"Cashfree subscription error: {full_resp}",
                 )
 
             sub_data = sub_resp.json()
@@ -279,7 +281,8 @@ async def create_subscription(
     except HTTPException:
         raise  # Re-raise our own HTTPExceptions
     except Exception as e:
-        logger.exception("Unexpected error in create_subscription: %s", str(e))
+        print(f"[CASHFREE] UNEXPECTED ERROR: {str(e)}", flush=True)
+        import traceback; traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Payment setup failed: {str(e)}",
