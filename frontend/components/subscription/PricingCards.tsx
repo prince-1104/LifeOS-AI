@@ -53,6 +53,7 @@ function SinglePlanCard({
     onSelectPlan,
     loading,
     discountPercent,
+    applicablePlans,
 }: {
     plan: PlanInfo;
     isRecommended?: boolean;
