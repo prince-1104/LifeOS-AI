@@ -41,6 +41,7 @@ type Props = {
   onSelectPlan: (planName: string, cycle: "monthly" | "yearly") => void;
   loading?: boolean;
   discountPercent?: number;
+  applicablePlans?: string[];
 };
 
 // Represents a single, specific plan
@@ -60,6 +61,7 @@ function SinglePlanCard({
     onSelectPlan: (planName: string, cycle: "monthly" | "yearly") => void;
     loading?: boolean;
     discountPercent?: number;
+    applicablePlans?: string[];
 }) {
     const isCurrent = currentPlan === plan.name;
     const isFree = plan.price_inr_monthly === 0;
@@ -68,8 +70,11 @@ function SinglePlanCard({
     let displayPrice = (isFree ? 0 : price);
     let discountedPrice = displayPrice;
     
-    if (discountPercent && !isFree) {
-        discountedPrice = Math.max(0, displayPrice - (displayPrice * discountPercent) / 100);
+    // Only apply discount if it's applicable to this plan
+    const isApplicable = discountPercent && (!applicablePlans || applicablePlans.length === 0 || applicablePlans.includes(plan.name));
+    
+    if (isApplicable && !isFree) {
+        discountedPrice = Math.round(Math.max(0, displayPrice - (displayPrice * discountPercent) / 100));
     }
 
     return (
@@ -90,7 +95,7 @@ function SinglePlanCard({
                     {plan.display_name}
                 </h3>
                 <div className="mt-4 flex items-center justify-center gap-1">
-                    {discountPercent && !isFree ? (
+                    {isApplicable && !isFree ? (
                         <div className="flex flex-col items-center">
                             <span className="text-sm text-zinc-500 line-through decoration-rose-500/50 decoration-2">
                                 ₹{price}
@@ -214,7 +219,7 @@ function GroupCard({
     );
 }
 
-export function PricingCards({ plans, currentPlan, onSelectPlan, loading, discountPercent }: Props) {
+export function PricingCards({ plans, currentPlan, onSelectPlan, loading, discountPercent, applicablePlans }: Props) {
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
   
   // Modal state
@@ -273,6 +278,7 @@ export function PricingCards({ plans, currentPlan, onSelectPlan, loading, discou
                   onSelectPlan={onSelectPlan}
                   loading={loading}
                   discountPercent={discountPercent}
+                  applicablePlans={applicablePlans}
               />
           )}
 
@@ -294,6 +300,7 @@ export function PricingCards({ plans, currentPlan, onSelectPlan, loading, discou
                   onSelectPlan={onSelectPlan}
                   loading={loading}
                   discountPercent={discountPercent}
+                  applicablePlans={applicablePlans}
               />
           )}
 
@@ -345,6 +352,7 @@ export function PricingCards({ plans, currentPlan, onSelectPlan, loading, discou
                                   }}
                                   loading={loading}
                                   discountPercent={discountPercent}
+                                  applicablePlans={applicablePlans}
                               />
                           );
                       })}

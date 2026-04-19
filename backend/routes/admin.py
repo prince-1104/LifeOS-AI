@@ -516,3 +516,25 @@ async def get_promo_codes(
         ) for p in promos
     ]
 
+@router.delete("/promos/{promo_id}")
+async def delete_promo_code(
+    promo_id: str,
+    admin_id: str = Depends(get_admin_session),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a promo code completely."""
+    try:
+        import uuid
+        parsed_id = uuid.UUID(promo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid promo code ID format")
+        
+    result = await db.execute(select(PromoCode).where(PromoCode.id == parsed_id))
+    promo = result.scalars().first()
+    
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+        
+    await db.delete(promo)
+    await db.commit()
+    return {"status": "success", "message": "Promo code deleted"}

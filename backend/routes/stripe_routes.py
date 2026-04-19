@@ -62,14 +62,15 @@ class CreateSubscriptionRequest(BaseModel):
 
 class ValidatePromoRequest(BaseModel):
     promo_code: str
-    plan_id: str
-    billing_cycle: str
+    plan_id: str | None = None
+    billing_cycle: str = "monthly"
 
 class ValidatePromoResponse(BaseModel):
     valid: bool
     discount_percent: int = 0
     final_amount_inr: float = 0.0
     message: str = ""
+    applicable_plans: list[str] = []
 
 
 class CreateSubscriptionResponse(BaseModel):
@@ -161,16 +162,6 @@ async def validate_promo(
     req: ValidatePromoRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    plan = PLANS.get(req.plan_id)
-    if not plan:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
-    if req.billing_cycle not in ["monthly", "yearly"]:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid billing cycle")
-
-    base_price = plan.price_inr_monthly if req.billing_cycle == "monthly" else plan.price_inr_yearly
-    if base_price == 0:
-        return ValidatePromoResponse(valid=False, message="Plan is free. Promo code not needed.")
-
     promo_code_str = req.promo_code.strip().upper()
     result = await db.execute(select(PromoCode).where(func.upper(PromoCode.code) == promo_code_str))
     promo = result.scalars().first()
@@ -183,22 +174,36 @@ async def validate_promo(
         return ValidatePromoResponse(valid=False, message="Promo code usage limit reached")
     if promo.expires_at and promo.expires_at < datetime.now(timezone.utc):
         return ValidatePromoResponse(valid=False, message="Promo code expired")
-    if promo.min_amount and base_price < promo.min_amount:
-        return ValidatePromoResponse(valid=False, message=f"Order amount is too low for this promo code (min ₹{promo.min_amount})")
-    
-    if promo.applicable_plans:
-        allowed_plans = [p.strip() for p in promo.applicable_plans.split(",")]
-        if plan.name not in allowed_plans:
+
+    allowed_plans = [p.strip() for p in promo.applicable_plans.split(",") if p.strip()] if promo.applicable_plans else []
+
+    final_amount = 0.0
+    if req.plan_id:
+        plan = PLANS.get(req.plan_id)
+        if not plan:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+        if req.billing_cycle not in ["monthly", "yearly"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid billing cycle")
+
+        base_price = plan.price_inr_monthly if req.billing_cycle == "monthly" else plan.price_inr_yearly
+        if base_price == 0:
+            return ValidatePromoResponse(valid=False, message="Plan is free. Promo code not needed.")
+            
+        if promo.min_amount and base_price < promo.min_amount:
+            return ValidatePromoResponse(valid=False, message=f"Order amount is too low for this promo code (min ₹{promo.min_amount})")
+        
+        if allowed_plans and req.plan_id not in allowed_plans:
             return ValidatePromoResponse(valid=False, message="Promo code is not applicable to this plan")
 
-    discount_amount = (base_price * promo.discount_percent) / 100.0
-    final_amount = max(0.0, base_price - discount_amount)
+        discount_amount = (base_price * promo.discount_percent) / 100.0
+        final_amount = max(0.0, base_price - discount_amount)
 
     return ValidatePromoResponse(
         valid=True,
         discount_percent=promo.discount_percent,
         final_amount_inr=final_amount,
-        message=f"Success! {promo.discount_percent}% applied."
+        message=f"Success! {promo.discount_percent}% applied.",
+        applicable_plans=allowed_plans
     )
 
 @router.post("/payments/create-subscription", response_model=CreateSubscriptionResponse)

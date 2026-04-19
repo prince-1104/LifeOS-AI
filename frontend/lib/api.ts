@@ -305,8 +305,8 @@ export type CreateSubscriptionParams = {
 
 export type ValidatePromoParams = {
   promo_code: string;
-  plan_id: string;
-  billing_cycle: "monthly" | "yearly";
+  plan_id?: string;
+  billing_cycle?: "monthly" | "yearly";
 };
 
 export type ValidatePromoResponse = {
@@ -314,6 +314,7 @@ export type ValidatePromoResponse = {
   discount_percent: number;
   final_amount_inr: number;
   message: string;
+  applicable_plans?: string[];
 };
 
 export async function validatePromoCode(

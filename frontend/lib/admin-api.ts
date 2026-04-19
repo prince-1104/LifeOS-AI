@@ -247,3 +247,15 @@ export async function createPromoCode(params: CreatePromoCodeParams): Promise<Pr
   }
   return res.json();
 }
+export async function deletePromoCode(promoId: string): Promise<{status: string, message: string}> {
+  const headers = await adminHeaders();
+  const res = await fetch(`${base()}/admin/promos/${promoId}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Request failed (${res.status})`);
+  }
+  return res.json();
+}

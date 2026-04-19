@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getPromoCodes, createPromoCode, type PromoCode } from "@/lib/admin-api";
+import { getPromoCodes, createPromoCode, deletePromoCode, type PromoCode } from "@/lib/admin-api";
 
 export default function PromosPage() {
   const [promos, setPromos] = useState<PromoCode[]>([]);
@@ -13,6 +13,7 @@ export default function PromosPage() {
   const [discountPercent, setDiscountPercent] = useState<number | "">("");
   const [maxUses, setMaxUses] = useState<number | "">("");
   const [minAmount, setMinAmount] = useState<number | "">("");
+  const [applicablePlans, setApplicablePlans] = useState("");
 
   useEffect(() => {
     loadPromos();
@@ -42,12 +43,14 @@ export default function PromosPage() {
         discount_percent: Number(discountPercent),
         max_uses: maxUses ? Number(maxUses) : null,
         min_amount: minAmount ? Number(minAmount) : null,
+        applicable_plans: applicablePlans ? applicablePlans : null,
       });
       setPromos([result, ...promos]);
       setNewCode("");
       setDiscountPercent("");
       setMaxUses("");
       setMinAmount("");
+      setApplicablePlans("");
     } catch (e: any) {
       setError(e.message || "Failed to create promo code");
     } finally {
@@ -57,6 +60,16 @@ export default function PromosPage() {
 
   if (loading) {
     return <div className="text-zinc-500 animate-pulse">Loading promos...</div>;
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Are you sure you want to delete this promo code?")) return;
+    try {
+      await deletePromoCode(id);
+      setPromos(promos.filter(p => p.id !== id));
+    } catch (e: any) {
+      setError(e.message || "Failed to delete promo code");
+    }
   }
 
   return (
@@ -75,9 +88,10 @@ export default function PromosPage() {
       {/* CREATE PROMO FORM */}
       <div className="rounded-2xl border border-white/10 bg-[#151515] p-6 shadow-xl">
         <h2 className="text-base font-semibold text-white mb-4">Create New Promo</h2>
-        <form onSubmit={handleCreate} className="grid sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1">Code Name</label>
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1">Code Name</label>
             <input 
               required
               type="text" 
@@ -110,14 +124,27 @@ export default function PromosPage() {
               onChange={(e) => setMaxUses(e.target.value ? Number(e.target.value) : "")}
             />
           </div>
-          <div>
-            <button 
-              type="submit" 
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4 items-end">
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1">Applicable Plans (Comma separated, e.g. basic_29,premium_499)</label>
+              <input 
+                type="text" 
+                placeholder="Leave blank for all plans"
+                className="w-full rounded-xl border border-white/10 bg-white/5 py-2 px-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                value={applicablePlans}
+                onChange={(e) => setApplicablePlans(e.target.value)}
+              />
+            </div>
+            <div>
+              <button 
+                type="submit" 
               disabled={creating || !newCode || !discountPercent}
               className="w-full rounded-xl bg-indigo-500 py-2 text-sm font-medium text-white transition hover:bg-indigo-600 disabled:opacity-50"
             >
               {creating ? "Creating..." : "Create Promo Code"}
-            </button>
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -130,9 +157,10 @@ export default function PromosPage() {
               <tr>
                 <th className="px-6 py-4">Code</th>
                 <th className="px-6 py-4">Discount</th>
+                <th className="px-6 py-4">Plans</th>
                 <th className="px-6 py-4">Uses / Max</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Created At</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -147,6 +175,17 @@ export default function PromosPage() {
                   <tr key={p.id} className="hover:bg-white/[0.02] transition">
                     <td className="px-6 py-4 font-mono font-semibold text-white">{p.code}</td>
                     <td className="px-6 py-4 text-indigo-400">{p.discount_percent}% OFF</td>
+                    <td className="px-6 py-4 text-xs text-zinc-400">
+                        {p.applicable_plans ? (
+                            <div className="flex flex-wrap gap-1">
+                                {p.applicable_plans.split(",").map(pl => (
+                                    <span key={pl} className="bg-white/5 px-1.5 py-0.5 rounded border border-white/10">{pl.trim()}</span>
+                                ))}
+                            </div>
+                        ) : (
+                            <span className="text-zinc-500">All Plans</span>
+                        )}
+                    </td>
                     <td className="px-6 py-4">
                       {p.times_used} {p.max_uses ? `/ ${p.max_uses}` : "-"}
                     </td>
@@ -157,8 +196,13 @@ export default function PromosPage() {
                         <span className="inline-flex items-center rounded-full bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-400 border border-rose-500/20">Inactive</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right text-zinc-500 lowercase">
-                      {new Date(p.created_at).toLocaleDateString()}
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => handleDelete(p.id)}
+                        className="text-xs text-rose-400 hover:text-rose-300 border border-rose-500/20 px-2 py-1 rounded hover:bg-rose-500/10 transition"
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))

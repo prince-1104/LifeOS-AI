@@ -48,9 +48,7 @@ export default function PricingPage() {
     setPromoMessage("Validating...");
     try {
       const res = await validatePromoCode(getToken, {
-        promo_code: promoCode,
-        plan_id: "premium_499", // arbitrary, full validation on button click
-        billing_cycle: "monthly"
+        promo_code: promoCode
       });
       setAppliedPromo(res);
       setPromoMessage(res.message);
@@ -182,6 +180,7 @@ export default function PricingPage() {
           onSelectPlan={handleSelectPlan}
           loading={processing}
           discountPercent={appliedPromo?.discount_percent}
+          applicablePlans={appliedPromo?.applicable_plans}
         />
         
         <div className="mt-16 flex items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 sm:p-8">
