@@ -121,6 +121,54 @@ PLANS: dict[str, PlanConfig] = {
         priority_processing=True,
         long_term_reminder=True,
     ),
+    "ultra_999": PlanConfig(
+        name="ultra_999",
+        display_name="₹999 Ultra",
+        price_inr_monthly=999,
+        price_inr_yearly=9590,
+        daily_requests=1000,
+        memory_writes_per_day=150,
+        memory_storage_limit=2000,
+        reminders_per_day=150,
+        reminder_24h_only=False,
+        monthly_cost_budget_inr=400.0,
+        voice_input=True,
+        premium_tts=True,
+        priority_processing=True,
+        long_term_reminder=True,
+    ),
+    "elite_1299": PlanConfig(
+        name="elite_1299",
+        display_name="₹1299 Elite",
+        price_inr_monthly=1299,
+        price_inr_yearly=12470,
+        daily_requests=2000,
+        memory_writes_per_day=250,
+        memory_storage_limit=5000,
+        reminders_per_day=250,
+        reminder_24h_only=False,
+        monthly_cost_budget_inr=600.0,
+        voice_input=True,
+        premium_tts=True,
+        priority_processing=True,
+        long_term_reminder=True,
+    ),
+    "apex_1999": PlanConfig(
+        name="apex_1999",
+        display_name="₹1999 Apex",
+        price_inr_monthly=1999,
+        price_inr_yearly=19190,
+        daily_requests=5000,
+        memory_writes_per_day=500,
+        memory_storage_limit=10000,
+        reminders_per_day=500,
+        reminder_24h_only=False,
+        monthly_cost_budget_inr=1000.0,
+        voice_input=True,
+        premium_tts=True,
+        priority_processing=True,
+        long_term_reminder=True,
+    ),
 }
 
 
@@ -157,7 +205,7 @@ def get_plan(plan_name: str) -> PlanConfig:
 
 def get_next_upgrade(current_plan: str) -> PlanConfig | None:
     """Return the next tier up from the current plan, or None if already max."""
-    order = ["free", "basic_29", "standard_49", "pro_99", "premium_499"]
+    order = ["free", "basic_29", "standard_49", "pro_99", "premium_499", "ultra_999", "elite_1299", "apex_1999"]
     try:
         idx = order.index(current_plan)
     except ValueError:
@@ -169,7 +217,7 @@ def get_next_upgrade(current_plan: str) -> PlanConfig | None:
 
 def get_all_plans() -> list[PlanConfig]:
     """Return all plans in tier order (cheapest first)."""
-    order = ["free", "basic_29", "standard_49", "pro_99", "premium_499"]
+    order = ["free", "basic_29", "standard_49", "pro_99", "premium_499", "ultra_999", "elite_1299", "apex_1999"]
     return [PLANS[k] for k in order]
 
 
