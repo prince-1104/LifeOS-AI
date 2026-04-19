@@ -172,7 +172,9 @@ async def create_subscription(
     base_url = _cashfree_base_url()
     headers = _cashfree_headers()
     price = _get_plan_price(req.plan_id, req.billing_cycle)
-    interval_type = "month" if req.billing_cycle == "monthly" else "year"
+    
+    # Cashfree requires EXACT uppercase interval types
+    interval_type = "MONTH" if req.billing_cycle == "monthly" else "YEAR"
 
     # ── Step 1: Create plan on Cashfree ───────────────────────────────
     cf_plan_id = f"{plan.name}_{req.billing_cycle}"
@@ -198,22 +200,35 @@ async def create_subscription(
         )
         if plan_resp.status_code not in (200, 201, 409):
             logger.error("Cashfree create plan failed: %s %s", plan_resp.status_code, plan_resp.text)
+            err_detail = "Failed to create subscription plan."
+            try:
+                err_detail = plan_resp.json().get('message', err_detail)
+            except: pass
             raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Failed to create subscription plan",
+                status_code=status.HTTP_400_BAD_REQUEST,  # Avoid 502 so Vercel doesn't mask it
+                detail=err_detail,
             )
 
         # ── Step 2: Create subscription ───────────────────────────────
         import uuid
         sub_id = f"sub_{user_id[:8]}_{uuid.uuid4().hex[:8]}"
 
+        # Clean phone to 10 digits if possible
+        import re
+        phone = user.phone or ""
+        clean_phone = re.sub(r'\D', '', phone)  # Remove all non-digits
+        if len(clean_phone) > 10:
+            clean_phone = clean_phone[-10:]  # Take last 10 (removes country code +91)
+        if len(clean_phone) < 10:
+            clean_phone = "9999999999"
+
         sub_payload = {
             "subscription_id": sub_id,
             "plan_id": cf_plan_id,
             "customer_details": {
                 "customer_id": user_id[:50],
-                "customer_phone": user.phone or "9999999999",
-                "customer_email": user.email or "",
+                "customer_phone": clean_phone,
+                "customer_email": user.email or "user@example.com", # Cannot be empty
                 "customer_name": f"{user.first_name or ''} {user.last_name or ''}".strip() or "User",
             },
             "subscription_meta": {
@@ -234,9 +249,13 @@ async def create_subscription(
 
         if sub_resp.status_code not in (200, 201):
             logger.error("Cashfree create subscription failed: %s %s", sub_resp.status_code, sub_resp.text)
+            err_detail = "Failed to create subscription."
+            try:
+                err_detail = sub_resp.json().get('message', err_detail)
+            except: pass
             raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Failed to create subscription",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=err_detail,
             )
 
         sub_data = sub_resp.json()
