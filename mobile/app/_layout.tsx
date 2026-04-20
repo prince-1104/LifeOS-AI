@@ -23,9 +23,9 @@ const tokenCache = {
   },
 };
 
-// 🔑 Clerk publishable key (same Clerk app as the web frontend)
+// 🔑 Clerk publishable key (production — same Clerk app as the web frontend)
 const CLERK_PUBLISHABLE_KEY =
-  "pk_test_c3Rhci1tdWxlLTE1LmNsZXJrLmFjY291bnRzLmRldiQ";
+  "pk_live_Y2xlcmsuZG9wdG9uaW4ub25saW5lJA==";
 
 function AuthGate() {
   const { isSignedIn, isLoaded } = useAuth();
