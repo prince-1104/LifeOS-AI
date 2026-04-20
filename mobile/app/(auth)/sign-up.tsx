@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useSignUp } from "@clerk/clerk-expo";
 import { useRouter, Link } from "expo-router";
@@ -71,9 +72,11 @@ export default function SignUpScreen() {
     >
       <View style={styles.inner}>
         <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoEmoji}>✨</Text>
-          </View>
+          <Image
+            source={require('@/assets/images/icon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>
             {pendingVerification
@@ -170,19 +173,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 40,
   },
-  logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
-    justifyContent: "center",
-    alignItems: "center",
+  logoImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
     marginBottom: Spacing.lg,
-  },
-  logoEmoji: {
-    fontSize: 32,
   },
   title: {
     fontSize: FontSize.xxl,

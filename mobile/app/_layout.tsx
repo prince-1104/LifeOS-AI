@@ -1,7 +1,8 @@
 import { useEffect } from "react";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/clerk-expo";
+import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import * as SecureStore from "expo-secure-store";
 import { Colors } from "@/constants/Theme";
 
@@ -25,7 +26,7 @@ const tokenCache = {
 
 // 🔑 Clerk publishable key (production — same Clerk app as the web frontend)
 const CLERK_PUBLISHABLE_KEY =
-  "pk_live_Y2xlcmsuZG9wdG9uaW4ub25saW5lJA==";
+  "pk_live_Y2xlcmsuZG9wdG9uaW4ub25saW5lJA";
 
 function AuthGate() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -46,51 +47,77 @@ function AuthGate() {
   return null;
 }
 
+function RootLayoutNav() {
+  const { isLoaded } = useAuth();
+
+  if (!isLoaded) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={Colors.accent} />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <AuthGate />
+      <StatusBar style="light" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: Colors.bgDeep },
+          animation: "fade",
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="billing"
+          options={{
+            animation: "slide_from_right",
+            presentation: "card",
+          }}
+        />
+        <Stack.Screen
+          name="pricing"
+          options={{
+            animation: "slide_from_right",
+            presentation: "card",
+          }}
+        />
+        <Stack.Screen
+          name="memories"
+          options={{
+            animation: "slide_from_right",
+            presentation: "card",
+          }}
+        />
+        <Stack.Screen
+          name="+not-found"
+          options={{ headerShown: true, title: "Not Found" }}
+        />
+      </Stack>
+    </>
+  );
+}
+
 export default function RootLayout() {
   return (
     <ClerkProvider
       publishableKey={CLERK_PUBLISHABLE_KEY}
       tokenCache={tokenCache}
     >
-      <ClerkLoaded>
-        <AuthGate />
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: Colors.bgDeep },
-            animation: "fade",
-          }}
-        >
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="billing"
-            options={{
-              animation: "slide_from_right",
-              presentation: "card",
-            }}
-          />
-          <Stack.Screen
-            name="pricing"
-            options={{
-              animation: "slide_from_right",
-              presentation: "card",
-            }}
-          />
-          <Stack.Screen
-            name="memories"
-            options={{
-              animation: "slide_from_right",
-              presentation: "card",
-            }}
-          />
-          <Stack.Screen
-            name="+not-found"
-            options={{ headerShown: true, title: "Not Found" }}
-          />
-        </Stack>
-      </ClerkLoaded>
+      <RootLayoutNav />
     </ClerkProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: Colors.bgDeep,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+});
