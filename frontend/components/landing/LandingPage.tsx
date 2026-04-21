@@ -45,7 +45,7 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-10">
             <span className="flex items-center gap-3 text-xl font-bold tracking-tight text-[#E8D1FF]">
-              <Image src="/provided_image.png" alt="Cortexa AI" width={32} height={32} className="rounded-lg object-contain bg-white" />
+              <Image src="/navbar_logo.png" alt="Cortexa AI" width={32} height={32} className="rounded-full object-contain" />
               Cortexa AI
             </span>
             <div className="hidden md:flex items-center gap-8 text-sm font-medium">
@@ -104,9 +104,8 @@ export function LandingPage() {
           </div>
           
           <div className="relative justify-self-center lg:justify-self-end mt-12 lg:mt-0 w-full max-w-[600px]">
-             {/* Mockup Container */}
-             <div className="relative w-full aspect-[4/3] rounded-[32px] overflow-hidden bg-white shadow-[0_0_60px_rgba(255,128,182,0.15)] flex items-center justify-center border border-white/20">
-                <Image src="/provided_image.png" alt="Cortexa AI" fill className="object-contain p-4 object-center" priority />
+             <div className="relative w-[120%] aspect-[4/3] -ml-[10%] mt-8 shadow-[0_0_60px_rgba(255,128,182,0.15)] flex items-center justify-center">
+                <Image src="/hero_mockup.png" alt="Cortexa AI Mockup" fill className="object-contain object-center" priority />
              </div>
              {/* Subtle Glow behind mockup */}
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-[#380E53]/40 to-[#FF80B6]/20 blur-[100px] -z-10 rounded-full"></div>
