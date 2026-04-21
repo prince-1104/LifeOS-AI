@@ -45,7 +45,7 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-10">
             <span className="flex items-center gap-3 text-xl font-bold tracking-tight text-[#E8D1FF]">
-              <Image src="/navbar_logo.png" alt="Cortexa AI" width={32} height={32} className="rounded-full object-contain" />
+              <Image src="/logo.png" alt="Cortexa AI" width={32} height={32} className="rounded-full object-contain" />
               Cortexa AI
             </span>
             <div className="hidden md:flex items-center gap-8 text-sm font-medium">
