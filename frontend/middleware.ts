@@ -5,6 +5,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/complete-profile",
+  "/pricing",
   "/api(.*)",          // Proxied to Railway backend — backend handles its own JWT auth
   "/admin(.*)",        // Admin routes have their own separate JWT auth system
 ]);
