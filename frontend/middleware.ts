@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/complete-profile",
   "/api(.*)",          // Proxied to Railway backend — backend handles its own JWT auth
+  "/admin(.*)",        // Admin routes have their own separate JWT auth system
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
