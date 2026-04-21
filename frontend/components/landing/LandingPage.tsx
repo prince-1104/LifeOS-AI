@@ -45,15 +45,13 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-10">
             <span className="flex items-center gap-3 text-xl font-bold tracking-tight text-[#E8D1FF]">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#1DE6DB] to-[#0A80AF] border border-white/20 p-[2px] flex items-center justify-center">
-                 <div className="w-full h-full rounded-md bg-[#0e0716]"></div>
-              </div>
+              <Image src="/provided_image.png" alt="Cortexa AI" width={32} height={32} className="rounded-lg object-contain bg-white" />
               Cortexa AI
             </span>
             <div className="hidden md:flex items-center gap-8 text-sm font-medium">
               <a href="#" className="text-[#FF9ECA] border-b-2 border-[#FF9ECA] pb-1">Solutions</a>
               <a href="#" className="text-white/60 hover:text-white transition">Technology</a>
-              <a href="#" className="text-white/60 hover:text-white transition">Enterprise</a>
+              <a href="/pricing" className="text-white/60 hover:text-white transition">Pricing</a>
               <a href="#" className="text-white/60 hover:text-white transition">Documentation</a>
             </div>
           </div>
@@ -108,7 +106,7 @@ export function LandingPage() {
           <div className="relative justify-self-center lg:justify-self-end mt-12 lg:mt-0 w-full max-w-[600px]">
              {/* Mockup Container */}
              <div className="relative w-full aspect-[4/3] rounded-[32px] overflow-hidden bg-white shadow-[0_0_60px_rgba(255,128,182,0.15)] flex items-center justify-center border border-white/20">
-                <Image src="/mockup.png" alt="Dashboard Mockup" fill className="object-contain p-4 object-center" priority />
+                <Image src="/provided_image.png" alt="Cortexa AI" fill className="object-contain p-4 object-center" priority />
              </div>
              {/* Subtle Glow behind mockup */}
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-[#380E53]/40 to-[#FF80B6]/20 blur-[100px] -z-10 rounded-full"></div>
@@ -233,9 +231,9 @@ export function LandingPage() {
               Join over 150,000+ early adopters building a smarter life with Cortexa AI.<br className="hidden md:block" /> No setup required, just your curiosity.
            </p>
            <div className="flex flex-wrap items-center justify-center gap-5">
-              <button className="rounded-full bg-[#E8D1FF] px-8 py-4 text-base font-bold text-[#140A1F] shadow-[0_0_20px_rgba(232,209,255,0.2)] transition hover:opacity-90 hover:scale-105 active:scale-95">
-                 Download for iOS
-              </button>
+              <a href="https://expo.dev/artifacts/eas/i588AittjLuFRdLSuogXNJ.apk" download className="block rounded-full bg-[#E8D1FF] px-8 py-4 text-base font-bold text-[#140A1F] shadow-[0_0_20px_rgba(232,209,255,0.2)] transition hover:opacity-90 hover:scale-105 active:scale-95">
+                 Download our Mobile App
+              </a>
               <button className="rounded-full border border-white/10 bg-[#1A0B2E] hover:bg-[#2A153A] px-8 py-4 text-base font-bold text-[#E8D1FF] transition">
                  Explore Desktop
               </button>
