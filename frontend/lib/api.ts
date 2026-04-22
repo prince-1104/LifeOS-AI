@@ -27,6 +27,7 @@ export type ProcessType =
   | "query"
   | "finance"
   | "reminder"
+  | "limit"
   | "unknown"
   | "error";
 

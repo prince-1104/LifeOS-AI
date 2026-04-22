@@ -1,4 +1,5 @@
 import type { ProcessData, ProcessType } from "@/lib/api";
+import { LimitMessage } from "./subscription/LimitMessage";
 
 export type AssistantPayload = {
   success: boolean;
@@ -206,8 +207,7 @@ export function Message({
     }
 
     if (type === "limit" && response) {
-      const { LimitMessage } = require("./subscription/LimitMessage");
-      return <LimitMessage message={response} />;
+      return <LimitMessage message={response} timestamp={timestamp} />;
     }
 
     /* query, unknown, or structured fallbacks */
