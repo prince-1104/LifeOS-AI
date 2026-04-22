@@ -23,6 +23,10 @@ export default function CompleteProfilePage() {
 
   const canSubmit = firstName.trim() && !saving && !skipping;
 
+  const getRedirectPath = () => {
+    return user?.primaryEmailAddress?.emailAddress === "doptonin@gmail.com" ? "/admin" : "/chat";
+  };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
@@ -48,7 +52,7 @@ export default function CompleteProfilePage() {
 
       await updateProfile(getToken, profileData as Parameters<typeof updateProfile>[1]);
 
-      router.push("/chat");
+      router.push(getRedirectPath());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save profile");
     } finally {
@@ -73,10 +77,10 @@ export default function CompleteProfilePage() {
           first_name: name,
         });
       }
-      router.push("/chat");
+      router.push(getRedirectPath());
     } catch {
       // If skip fails, just navigate anyway
-      router.push("/chat");
+      router.push(getRedirectPath());
     } finally {
       setSkipping(false);
     }

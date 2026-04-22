@@ -1,6 +1,6 @@
 "use client";
 
-import { SignInButton, SignUpButton, useAuth } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -13,14 +13,18 @@ import {
 import { CpuChipIcon } from "@heroicons/react/24/outline";
 
 export function LandingPage() {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, user } = useUser();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      router.replace("/chat");
+      if (user?.primaryEmailAddress?.emailAddress === "doptonin@gmail.com") {
+        router.replace("/admin");
+      } else {
+        router.replace("/chat");
+      }
     }
-  }, [isLoaded, isSignedIn, router]);
+  }, [isLoaded, isSignedIn, user, router]);
 
   if (!isLoaded) {
     return (
@@ -33,7 +37,7 @@ export function LandingPage() {
   if (isSignedIn) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0e0716] text-[#FF9ECA]">
-        <div className="animate-pulse">Redirecting to Dashboard...</div>
+        <div className="animate-pulse">Redirecting...</div>
       </div>
     );
   }
