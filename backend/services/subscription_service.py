@@ -111,10 +111,25 @@ async def check_daily_request_limit(
     usage = await _get_or_create_daily(db, user_id)
     if usage.requests_count >= plan.daily_requests:
         nxt = get_next_upgrade(plan.name)
-        nxt_info = f"Upgrade to {nxt.display_name} for {nxt.daily_requests} daily requests → ₹{nxt.price_inr_monthly}/month" if nxt else "You're on the highest plan."
+        if nxt and plan.name == "free":
+            msg = (
+                f"🚫 You've hit today's limit of {plan.daily_requests} requests!\n\n"
+                f"🚀 Unlock {nxt.daily_requests} daily requests with {nxt.display_name} "
+                f"for just ₹{nxt.price_inr_monthly}/month — that's less than ₹1/day!\n"
+                f"⚡ Don't let limits slow you down."
+            )
+        elif nxt:
+            msg = (
+                f"🚫 You've used all {plan.daily_requests} requests for today on your {plan.display_name} plan.\n\n"
+                f"⬆️ Upgrade to {nxt.display_name} for {nxt.daily_requests} requests/day, "
+                f"{nxt.memory_writes_per_day} memory saves & {nxt.reminders_per_day} reminders — "
+                f"only ₹{nxt.price_inr_monthly}/month!"
+            )
+        else:
+            msg = f"🏆 You've used all {plan.daily_requests} requests for today. You're on our highest plan — resets at midnight!"
         return _denied(
             reason="daily_request_limit",
-            message=f"You've reached today's limit of {plan.daily_requests} requests. {nxt_info}",
+            message=msg,
             upgrade_plan=nxt.name if nxt else None,
         )
     return _ok()
@@ -128,10 +143,24 @@ async def check_memory_write_limit(
     usage = await _get_or_create_daily(db, user_id)
     if usage.memory_writes >= plan.memory_writes_per_day:
         nxt = get_next_upgrade(plan.name)
-        nxt_info = f"Upgrade to {nxt.display_name} for {nxt.memory_writes_per_day} memory saves/day → ₹{nxt.price_inr_monthly}/month" if nxt else ""
+        if nxt and plan.name == "free":
+            msg = (
+                f"🧠 You've saved {plan.memory_writes_per_day}/{plan.memory_writes_per_day} memories today!\n\n"
+                f"🔓 Get {nxt.memory_writes_per_day} memory saves/day + {nxt.memory_storage_limit} total storage "
+                f"with {nxt.display_name} — just ₹{nxt.price_inr_monthly}/month.\n"
+                f"💡 Your memories deserve more space."
+            )
+        elif nxt:
+            msg = (
+                f"🧠 All {plan.memory_writes_per_day} memory saves used today on {plan.display_name}.\n\n"
+                f"⬆️ {nxt.display_name} gives you {nxt.memory_writes_per_day} saves/day "
+                f"and {nxt.memory_storage_limit} memory storage — ₹{nxt.price_inr_monthly}/month."
+            )
+        else:
+            msg = f"🧠 All {plan.memory_writes_per_day} memory saves used today. Resets at midnight!"
         return _denied(
             reason="memory_write_limit",
-            message=f"You've used all {plan.memory_writes_per_day} memory saves for today. {nxt_info}",
+            message=msg,
             upgrade_plan=nxt.name if nxt else None,
         )
     return _ok()
@@ -145,10 +174,25 @@ async def check_reminder_limit(
     usage = await _get_or_create_daily(db, user_id)
     if usage.reminders_created >= plan.reminders_per_day:
         nxt = get_next_upgrade(plan.name)
-        nxt_info = f"Upgrade to {nxt.display_name} for {nxt.reminders_per_day} reminders/day → ₹{nxt.price_inr_monthly}/month" if nxt else ""
+        if nxt and plan.name == "free":
+            msg = (
+                f"⏰ You've set {plan.reminders_per_day}/{plan.reminders_per_day} reminders today!\n\n"
+                f"🔔 Get {nxt.reminders_per_day} reminders/day with {nxt.display_name} "
+                f"— only ₹{nxt.price_inr_monthly}/month.\n"
+                f"🎯 Never miss a task again."
+            )
+        elif nxt:
+            msg = (
+                f"⏰ All {plan.reminders_per_day} reminders used today on {plan.display_name}.\n\n"
+                f"⬆️ {nxt.display_name} unlocks {nxt.reminders_per_day} reminders/day"
+                + (" + long-term scheduling" if nxt.long_term_reminder and not plan.long_term_reminder else "")
+                + f" — ₹{nxt.price_inr_monthly}/month."
+            )
+        else:
+            msg = f"⏰ All {plan.reminders_per_day} reminders used today. Resets at midnight!"
         return _denied(
             reason="reminder_limit",
-            message=f"You've reached today's limit of {plan.reminders_per_day} reminders. {nxt_info}",
+            message=msg,
             upgrade_plan=nxt.name if nxt else None,
         )
     return _ok()
@@ -165,10 +209,17 @@ def check_reminder_time_restriction(
     now = datetime.now(timezone.utc)
     if reminder_time > now + timedelta(hours=24):
         min_plan = min_plan_for_feature("long_term_reminder")
-        plan_info = f"Available in the {min_plan.display_name} plan" if min_plan else ""
+        if min_plan:
+            msg = (
+                f"📅 Long-term reminders (beyond 24h) are a premium feature!\n\n"
+                f"🔓 Unlock with {min_plan.display_name} — schedule reminders days, "
+                f"weeks, or months ahead for just ₹{min_plan.price_inr_monthly}/month."
+            )
+        else:
+            msg = "📅 Long-term reminders require a higher plan."
         return _denied(
             reason="reminder_24h_restriction",
-            message=f"Reminders beyond 24 hours require a higher plan. {plan_info}",
+            message=msg,
             upgrade_plan=min_plan.name if min_plan else None,
         )
     return _ok()
@@ -200,10 +251,24 @@ def check_feature_access(
         return _ok()
     if not feature_flag:
         min_plan = min_plan_for_feature(feature)
-        plan_info = f"Available in the {min_plan.display_name} plan → ₹{min_plan.price_inr_monthly}/month" if min_plan else ""
+        feature_labels = {
+            "voice_input": "🎙️ Voice Input",
+            "premium_tts": "🔊 Premium Text-to-Speech",
+            "priority_processing": "⚡ Priority Processing",
+            "long_term_reminder": "📅 Long-term Reminders",
+        }
+        feature_label = feature_labels.get(feature, feature.replace("_", " ").title())
+        if min_plan:
+            msg = (
+                f"🔒 {feature_label} is a premium feature!\n\n"
+                f"✨ Available from {min_plan.display_name} — ₹{min_plan.price_inr_monthly}/month.\n"
+                f"🚀 Upgrade now to supercharge your experience."
+            )
+        else:
+            msg = f"🔒 {feature_label} is not available on your current plan."
         return _denied(
             reason=f"feature_locked:{feature}",
-            message=f"This feature is not available on your current plan. {plan_info}",
+            message=msg,
             upgrade_plan=min_plan.name if min_plan else None,
         )
     return _ok()
