@@ -9,7 +9,6 @@ import {
   getWeeklyUsage,
   getMonthlyUsage,
   getTopUsers,
-  getTopUsers,
   type UsageSummary,
   type DailyUsage,
   type WeeklyUsage,

@@ -1,6 +1,8 @@
 "use client";
 
 import { useAuth, useUser } from "@clerk/nextjs";
+import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 
 const navItems = [
   {
