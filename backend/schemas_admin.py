@@ -8,24 +8,6 @@ from pydantic import BaseModel, Field
 # ── Auth ──────────────────────────────────────────────────────────────
 
 
-class AdminLoginRequest(BaseModel):
-    email: str
-    password: str
-
-
-class AdminLoginResponse(BaseModel):
-    token: str
-    expires_in_hours: int = 24
-
-
-class ForgotPasswordRequest(BaseModel):
-    email: str
-
-
-class ResetPasswordRequest(BaseModel):
-    email: str
-    code: str
-    new_password: str
 
 
 class MessageResponse(BaseModel):

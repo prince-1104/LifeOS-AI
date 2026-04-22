@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { getPromoCodes, createPromoCode, deletePromoCode, togglePromoStatus, type PromoCode } from "@/lib/admin-api";
 import { getPlans, type PlanInfo } from "@/lib/api";
+import { useSession } from "@clerk/nextjs";
 
 export default function PromosPage() {
+  const { session } = useSession();
   const [promos, setPromos] = useState<PromoCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -18,14 +20,18 @@ export default function PromosPage() {
   const [selectedPlans, setSelectedPlans] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    loadPromos();
-  }, []);
+    if (session) {
+      loadPromos();
+    }
+  }, [session]);
 
   async function loadPromos() {
+    if (!session) return;
+    const getToken = async () => await session.getToken();
     setLoading(true);
     try {
       const [data, plansData] = await Promise.all([
-        getPromoCodes(),
+        getPromoCodes(getToken),
         getPlans().catch(() => []) // gracefully handle error if plans fail
       ]);
       setPromos(data);
@@ -44,7 +50,8 @@ export default function PromosPage() {
     setCreating(true);
     setError("");
     try {
-      const result = await createPromoCode({
+      const getToken = async () => await session!.getToken();
+      const result = await createPromoCode(getToken, {
         code: newCode,
         discount_percent: Number(discountPercent),
         max_uses: maxUses ? Number(maxUses) : null,
@@ -71,7 +78,8 @@ export default function PromosPage() {
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this promo code?")) return;
     try {
-      await deletePromoCode(id);
+      const getToken = async () => await session!.getToken();
+      await deletePromoCode(getToken, id);
       setPromos(promos.filter(p => p.id !== id));
     } catch (e: any) {
       setError(e.message || "Failed to delete promo code");
@@ -80,7 +88,8 @@ export default function PromosPage() {
 
   async function handleToggle(id: string) {
     try {
-      const result = await togglePromoStatus(id);
+      const getToken = async () => await session!.getToken();
+      const result = await togglePromoStatus(getToken, id);
       setPromos(promos.map(p => 
         p.id === id ? { ...p, is_active: result.is_active } : p
       ));

@@ -11,78 +11,15 @@ const base = () => {
   return process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 };
 
-const ADMIN_TOKEN_KEY = "admin_session_token";
+export type GetToken = () => Promise<string | null>;
 
-export function getAdminToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(ADMIN_TOKEN_KEY);
-}
-
-export function setAdminToken(token: string): void {
-  localStorage.setItem(ADMIN_TOKEN_KEY, token);
-}
-
-export function clearAdminToken(): void {
-  localStorage.removeItem(ADMIN_TOKEN_KEY);
-}
-
-async function adminHeaders(): Promise<HeadersInit> {
-  const token = getAdminToken();
+async function adminHeaders(getToken: GetToken): Promise<HeadersInit> {
+  const token = await getToken();
   if (!token) throw new Error("No admin session");
   return {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
-}
-
-// ── Auth ──────────────────────────────────────────────────────────────
-
-export async function adminLogin(
-  email: string,
-  password: string,
-): Promise<{ token: string; expires_in_hours: number }> {
-  const res = await fetch(`${base()}/admin/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Login failed (${res.status})`);
-  }
-  return res.json();
-}
-
-export async function forgotPassword(
-  email: string,
-): Promise<{ message: string }> {
-  const res = await fetch(`${base()}/admin/forgot-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Request failed (${res.status})`);
-  }
-  return res.json();
-}
-
-export async function resetPassword(
-  email: string,
-  code: string,
-  new_password: string,
-): Promise<{ message: string }> {
-  const res = await fetch(`${base()}/admin/reset-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, code, new_password }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Reset failed (${res.status})`);
-  }
-  return res.json();
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────
@@ -148,29 +85,29 @@ export type TopUser = {
   cost: number;
 };
 
-export async function getUsageSummary(): Promise<UsageSummary> {
-  const headers = await adminHeaders();
+export async function getUsageSummary(getToken: GetToken): Promise<UsageSummary> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/usage/summary`, { headers });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function getUserUsage(): Promise<UserUsage[]> {
-  const headers = await adminHeaders();
+export async function getUserUsage(getToken: GetToken): Promise<UserUsage[]> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/usage/users`, { headers });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function getAllUsers(): Promise<AdminUser[]> {
-  const headers = await adminHeaders();
+export async function getAllUsers(getToken: GetToken): Promise<AdminUser[]> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/users/all`, { headers });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function getDailyUsage(days = 30): Promise<DailyUsage[]> {
-  const headers = await adminHeaders();
+export async function getDailyUsage(getToken: GetToken, days = 30): Promise<DailyUsage[]> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/usage/daily?days=${days}`, {
     headers,
   });
@@ -178,8 +115,8 @@ export async function getDailyUsage(days = 30): Promise<DailyUsage[]> {
   return res.json();
 }
 
-export async function getWeeklyUsage(weeks = 12): Promise<WeeklyUsage[]> {
-  const headers = await adminHeaders();
+export async function getWeeklyUsage(getToken: GetToken, weeks = 12): Promise<WeeklyUsage[]> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/usage/weekly?weeks=${weeks}`, {
     headers,
   });
@@ -187,8 +124,8 @@ export async function getWeeklyUsage(weeks = 12): Promise<WeeklyUsage[]> {
   return res.json();
 }
 
-export async function getMonthlyUsage(months = 12): Promise<MonthlyUsage[]> {
-  const headers = await adminHeaders();
+export async function getMonthlyUsage(getToken: GetToken, months = 12): Promise<MonthlyUsage[]> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/usage/monthly?months=${months}`, {
     headers,
   });
@@ -196,8 +133,8 @@ export async function getMonthlyUsage(months = 12): Promise<MonthlyUsage[]> {
   return res.json();
 }
 
-export async function getTopUsers(limit = 10): Promise<TopUser[]> {
-  const headers = await adminHeaders();
+export async function getTopUsers(getToken: GetToken, limit = 10): Promise<TopUser[]> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/top-users?limit=${limit}`, {
     headers,
   });
@@ -229,15 +166,15 @@ export type CreatePromoCodeParams = {
   expires_at?: string | null;
 };
 
-export async function getPromoCodes(): Promise<PromoCode[]> {
-  const headers = await adminHeaders();
+export async function getPromoCodes(getToken: GetToken): Promise<PromoCode[]> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/promos`, { headers });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function createPromoCode(params: CreatePromoCodeParams): Promise<PromoCode> {
-  const headers = await adminHeaders();
+export async function createPromoCode(getToken: GetToken, params: CreatePromoCodeParams): Promise<PromoCode> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/promos`, {
     method: "POST",
     headers,
@@ -249,8 +186,8 @@ export async function createPromoCode(params: CreatePromoCodeParams): Promise<Pr
   }
   return res.json();
 }
-export async function deletePromoCode(promoId: string): Promise<{status: string, message: string}> {
-  const headers = await adminHeaders();
+export async function deletePromoCode(getToken: GetToken, promoId: string): Promise<{status: string, message: string}> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/promos/${promoId}`, {
     method: "DELETE",
     headers,
@@ -262,8 +199,8 @@ export async function deletePromoCode(promoId: string): Promise<{status: string,
   return res.json();
 }
 
-export async function togglePromoStatus(promoId: string): Promise<{status: string, is_active: number}> {
-  const headers = await adminHeaders();
+export async function togglePromoStatus(getToken: GetToken, promoId: string): Promise<{status: string, is_active: number}> {
+  const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/promos/${promoId}/toggle-status`, {
     method: "PUT",
     headers,

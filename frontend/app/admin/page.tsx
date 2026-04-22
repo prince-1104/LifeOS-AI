@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "@clerk/nextjs";
 import {
   getUsageSummary,
   getDailyUsage,
   getWeeklyUsage,
   getMonthlyUsage,
   getTopUsers,
-  clearAdminToken,
+  getTopUsers,
   type UsageSummary,
   type DailyUsage,
   type WeeklyUsage,
@@ -20,6 +21,7 @@ import UsageChart from "@/components/admin/UsageChart";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const { session } = useSession();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [daily, setDaily] = useState<DailyUsage[]>([]);
@@ -30,13 +32,15 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     async function load() {
+      if (!session) return;
       try {
+        const getToken = async () => await session.getToken();
         const [s, d, w, m, t] = await Promise.all([
-          getUsageSummary(),
-          getDailyUsage(),
-          getWeeklyUsage(),
-          getMonthlyUsage(),
-          getTopUsers(),
+          getUsageSummary(getToken),
+          getDailyUsage(getToken),
+          getWeeklyUsage(getToken),
+          getMonthlyUsage(getToken),
+          getTopUsers(getToken),
         ]);
         setSummary(s);
         setDaily(d);
@@ -45,8 +49,7 @@ export default function AdminDashboardPage() {
         setTopUsers(t);
       } catch (err: any) {
         if (err.message?.includes("401") || err.message?.includes("admin")) {
-          clearAdminToken();
-          router.replace("/admin/login");
+          router.replace("/");
           return;
         }
         setError(err.message || "Failed to load analytics");
@@ -55,7 +58,7 @@ export default function AdminDashboardPage() {
       }
     }
     load();
-  }, [router]);
+  }, [router, session]);
 
   return (
     <div className="space-y-6">

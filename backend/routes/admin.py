@@ -10,28 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.admin_auth import (
-    create_admin_session,
-    generate_reset_code,
-    get_admin_session,
-    set_admin_password,
-    store_reset_code,
-    verify_admin_credentials,
-    verify_reset_code,
-)
+from auth.admin_auth import get_admin_session
 from config import get_settings
 from db.models import DailyUsage, UsageLog, User, PromoCode
 from db.postgres import get_db
 from plans import get_plan
 from schemas_admin import (
-    AdminLoginRequest,
-    AdminLoginResponse,
-    AdminUserRow,
-    DailyUsageRow,
-    ForgotPasswordRequest,
-    MessageResponse,
     MonthlyUsageRow,
-    ResetPasswordRequest,
     RevenueSummaryResponse,
     TopUserRow,
     UsageSummaryResponse,
@@ -44,67 +29,6 @@ from schemas_admin import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-# ═══════════════════════════════════════════════════════════════════════
-#  AUTH ENDPOINTS
-# ═══════════════════════════════════════════════════════════════════════
-
-
-@router.post("/login", response_model=AdminLoginResponse)
-async def admin_login(req: AdminLoginRequest, db: AsyncSession = Depends(get_db)):
-    """Verify email + password and return a session token."""
-    if not await verify_admin_credentials(db, req.email, req.password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
-
-    settings = get_settings()
-    token = await create_admin_session(db)
-    return AdminLoginResponse(
-        token=token,
-        expires_in_hours=settings.ADMIN_SESSION_EXPIRY_HOURS,
-    )
-
-
-@router.post("/forgot-password", response_model=MessageResponse)
-async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
-    """Send a 6-digit password-reset code to the admin email."""
-    settings = get_settings()
-
-    if req.email != settings.ADMIN_EMAIL:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Unauthorized email address",
-        )
-
-    code = generate_reset_code()
-    await store_reset_code(db, req.email, code)
-
-    return MessageResponse(message="Reset code sent. Check your email or backend console.")
-
-
-@router.post("/reset-password", response_model=MessageResponse)
-async def reset_password(req: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
-    """Verify reset code and set a new admin password."""
-    settings = get_settings()
-
-    if req.email != settings.ADMIN_EMAIL:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Unauthorized email address",
-        )
-
-    is_valid = await verify_reset_code(db, req.email, req.code)
-    if not is_valid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired reset code",
-        )
-
-    await set_admin_password(db, req.new_password)
-    return MessageResponse(message="Password updated successfully")
 
 
 # ═══════════════════════════════════════════════════════════════════════

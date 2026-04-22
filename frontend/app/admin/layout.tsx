@@ -1,9 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
-import { getAdminToken, clearAdminToken } from "@/lib/admin-api";
+import { useAuth, useUser } from "@clerk/nextjs";
 
 const navItems = [
   {
@@ -42,28 +39,13 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [authed, setAuthed] = useState(false);
+  const { isLoaded: isAuthLoaded, signOut } = useAuth();
+  const { user, isLoaded: isUserLoaded } = useUser();
 
-  useEffect(() => {
-    // Skip auth check on the login page
-    if (pathname === "/admin/login") {
-      setAuthed(true);
-      return;
-    }
-    const token = getAdminToken();
-    if (!token) {
-      router.replace("/admin/login");
-    } else {
-      setAuthed(true);
-    }
-  }, [pathname, router]);
+  const isLoaded = isAuthLoaded && isUserLoaded;
+  const isAdmin = user?.primaryEmailAddress?.emailAddress === "doptonin@gmail.com";
 
-  // Login page renders without sidebar
-  if (pathname === "/admin/login") {
-    return <>{children}</>;
-  }
-
-  if (!authed) {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-2 text-slate-400">
@@ -72,6 +54,40 @@ export default function AdminLayout({
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
           Authenticating…
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass-panel rounded-2xl p-8 max-w-md w-full text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 mb-4">
+            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-white mb-2">Access Denied</h1>
+          <p className="text-sm text-slate-400 mb-6">
+            You need admin privileges to view this page. Sign in with the admin account to continue.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Link
+              href="/"
+              className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition-colors"
+            >
+              Back to Home
+            </Link>
+            {!user ? (
+              <Link
+                href="/sign-in?redirect_url=/admin"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:brightness-110 transition-all"
+              >
+                Sign In
+              </Link>
+            ) : null}
+          </div>
         </div>
       </div>
     );
@@ -120,8 +136,8 @@ export default function AdminLayout({
           <button
             id="admin-logout-btn"
             onClick={() => {
-              clearAdminToken();
-              router.push("/admin/login");
+              signOut();
+              router.push("/");
             }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
           >

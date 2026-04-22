@@ -2,28 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "@clerk/nextjs";
 import {
   getAllUsers,
-  clearAdminToken,
   type AdminUser,
 } from "@/lib/admin-api";
 import UsersTable from "@/components/admin/UsersTable";
 
 export default function AdminUsersPage() {
   const router = useRouter();
+  const { session } = useSession();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
     async function load() {
+      if (!session) return;
       try {
-        const data = await getAllUsers();
+        const getToken = async () => await session.getToken();
+        const data = await getAllUsers(getToken);
         setUsers(data);
       } catch (err: any) {
         if (err.message?.includes("401") || err.message?.includes("admin")) {
-          clearAdminToken();
-          router.replace("/admin/login");
+          router.replace("/");
           return;
         }
         setError(err.message || "Failed to load user data");
@@ -32,7 +34,7 @@ export default function AdminUsersPage() {
       }
     }
     load();
-  }, [router]);
+  }, [router, session]);
 
   return (
     <div className="space-y-6">
