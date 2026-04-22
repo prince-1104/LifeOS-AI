@@ -42,10 +42,10 @@ export function LandingPage() {
     <div className="min-h-screen bg-[#0e0716] text-white selection:bg-[#FF9ECA] selection:text-[#0e0716] font-sans pb-0">
       {/* Navbar */}
       <nav className="fixed top-0 inset-x-0 z-50 bg-[#0e0716]/80 backdrop-blur-md border-b border-white/[0.05]">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-10">
-            <span className="flex items-center gap-3 text-xl font-bold tracking-tight text-[#E8D1FF]">
-              <div className="w-10 h-10 rounded-full overflow-hidden bg-[#0e0716] flex items-center justify-center shrink-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
+          <div className="flex items-center gap-4 sm:gap-10">
+            <span className="flex items-center gap-2 sm:gap-3 text-lg sm:text-xl font-bold tracking-tight text-[#E8D1FF]">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-[#0e0716] flex items-center justify-center shrink-0">
                 <Image src="/navbar_logo.png" alt="Cortexa AI" width={52} height={52} className="object-cover scale-[1.3]" />
               </div>
               Cortexa AI
@@ -57,14 +57,14 @@ export function LandingPage() {
             </div>
           </div>
           
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 sm:gap-6">
             <SignInButton mode="modal">
-              <button className="text-sm font-semibold text-white/80 hover:text-white transition hidden md:block">
+              <button className="text-xs sm:text-sm font-semibold text-white/80 hover:text-white transition hidden sm:block">
                 Sign In
               </button>
             </SignInButton>
             <SignUpButton mode="modal">
-              <button className="rounded-full bg-gradient-to-r from-[#FFB1D8] to-[#FF80B6] px-5 py-2.5 text-sm font-bold text-[#3B0E21] shadow-[0_0_15px_rgba(255,128,182,0.3)] transition hover:opacity-90 hover:scale-105 active:scale-95">
+              <button className="rounded-full bg-gradient-to-r from-[#FFB1D8] to-[#FF80B6] px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-bold text-[#3B0E21] shadow-[0_0_15px_rgba(255,128,182,0.3)] transition hover:opacity-90 hover:scale-105 active:scale-95">
                 Create Account
               </button>
             </SignUpButton>
@@ -73,26 +73,26 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <main className="pt-40 pb-20 px-6 max-w-7xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+      <main className="pt-28 sm:pt-40 pb-20 px-4 sm:px-6 max-w-7xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-8 sm:gap-12 items-center">
           <div className="max-w-xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#084D73] bg-[#0A2640]/50 px-3 py-1 mb-8">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#084D73] bg-[#0A2640]/50 px-3 py-1 mb-6 sm:mb-8">
               <div className="w-2 h-2 rounded-full bg-[#1DE6DB]"></div>
               <span className="text-xs font-bold tracking-wider text-[#1DE6DB]">V4.0 LAUNCH</span>
             </div>
             
-            <h1 className="text-6xl md:text-7xl lg:text-[80px] font-extrabold leading-[1.05] tracking-tight mb-8">
+            <h1 className="text-[42px] sm:text-6xl md:text-7xl lg:text-[80px] font-extrabold leading-[1.05] tracking-tight mb-6 sm:mb-8">
                Your life,<br />
                <span className="bg-gradient-to-r from-[#FFB1D8] to-[#FF80B6] bg-clip-text text-transparent">
                   understood.
                </span>
             </h1>
             
-            <p className="text-lg md:text-[21px] text-white/60 font-light leading-[1.6] mb-10 max-w-lg">
+            <p className="text-base sm:text-lg md:text-[21px] text-white/60 font-light leading-[1.6] mb-8 sm:mb-10 max-w-lg">
               Cortexa is the first autonomous memory engine that transforms your digital footprint into a searchable, actionable intelligence layer. Personal finance, memories, and schedules — perfectly synced.
             </p>
             
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
               <SignUpButton mode="modal">
                 <button className="rounded-full bg-gradient-to-r from-[#FFB1D8] to-[#FF80B6] px-8 py-4 text-base font-bold text-[#3B0E21] shadow-[0_0_20px_rgba(255,128,182,0.4)] transition hover:opacity-90 hover:scale-105 active:scale-95">
                   Get Started Free
@@ -104,40 +104,40 @@ export function LandingPage() {
             </div>
           </div>
           
-          <div className="relative justify-self-center lg:justify-self-end mt-12 lg:mt-0 w-full max-w-[400px]">
-             <div className="group relative w-full aspect-[7/4] rounded-3xl overflow-hidden flex items-center justify-center cursor-pointer shadow-2xl transition-shadow duration-500 hover:shadow-[0_0_40px_rgba(255,128,182,0.5),0_0_80px_rgba(255,128,182,0.2)]">
-                <Image src="/hero_brand.jpg" alt="Cortexa AI" fill className="object-cover object-center transition-all duration-500 group-hover:drop-shadow-[0_0_50px_rgba(255,128,182,0.8)] group-hover:scale-105" priority />
+          <div className="relative justify-self-center lg:justify-self-end mt-8 lg:mt-0 w-full max-w-[400px]">
+             <div className="group relative w-full aspect-[7/4] rounded-3xl overflow-hidden flex items-center justify-center cursor-pointer shadow-2xl shadow-[0_0_30px_rgba(255,128,182,0.15)] sm:shadow-2xl transition-shadow duration-500 hover:shadow-[0_0_40px_rgba(255,128,182,0.5),0_0_80px_rgba(255,128,182,0.2)]">
+                <Image src="/hero_brand.jpg" alt="Cortexa AI" fill className="object-cover object-center transition-all duration-500 drop-shadow-[0_0_25px_rgba(255,128,182,0.3)] sm:drop-shadow-none sm:group-hover:drop-shadow-[0_0_50px_rgba(255,128,182,0.8)] group-hover:scale-105" priority />
              </div>
-             {/* Subtle Glow behind mockup */}
-             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-[#380E53]/40 to-[#FF80B6]/20 blur-[100px] -z-10 rounded-full"></div>
+             {/* Glow behind mockup — always visible on mobile, enhanced on hover for desktop */}
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-[#380E53]/40 to-[#FF80B6]/20 blur-[100px] -z-10 rounded-full opacity-100 sm:opacity-60 sm:group-hover:opacity-100 transition-opacity duration-500"></div>
           </div>
         </div>
 
         {/* Promo Banner */}
-        <div className="mt-32 max-w-5xl mx-auto rounded-3xl bg-[#09040c] border border-white/5 p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-           <div className="flex items-center gap-5">
-              <div className="w-14 h-14 rounded-full bg-[#2A153A] flex items-center justify-center shrink-0">
-                 <StarIcon className="w-6 h-6 text-[#E8D1FF]" />
+        <div className="mt-20 sm:mt-32 max-w-5xl mx-auto rounded-3xl bg-[#09040c] border border-white/5 p-5 sm:p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-5 sm:gap-6 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+           <div className="flex items-center gap-4 sm:gap-5 text-center md:text-left">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#2A153A] flex items-center justify-center shrink-0">
+                 <StarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-[#E8D1FF]" />
               </div>
               <div>
-                 <h3 className="text-xl font-bold text-white mb-1.5">Limited Founder&apos;s Offer</h3>
-                 <p className="text-white/60 text-[15px]">
+                 <h3 className="text-lg sm:text-xl font-bold text-white mb-1 sm:mb-1.5">Limited Founder&apos;s Offer</h3>
+                 <p className="text-white/60 text-sm sm:text-[15px]">
                     Join for just <span className="text-[#FF80B6] font-semibold">6rs/month</span> with promocode <span className="px-2 py-0.5 rounded bg-[#FF80B6]/15 text-[#FF80B6] font-mono text-xs ml-1 font-bold">NEW80</span>
                  </p>
               </div>
            </div>
            <SignUpButton mode="modal">
-              <button className="whitespace-nowrap rounded-full bg-[#E8D1FF] px-8 py-3.5 text-[15px] font-bold text-[#140A1F] transition hover:bg-white active:scale-95">
+              <button className="whitespace-nowrap rounded-full bg-[#E8D1FF] px-6 sm:px-8 py-3 sm:py-3.5 text-sm sm:text-[15px] font-bold text-[#140A1F] transition hover:bg-white active:scale-95 w-full md:w-auto">
                  CLAIM OFFER
               </button>
            </SignUpButton>
         </div>
 
         {/* Capabilities Section */}
-        <div className="mt-40 mb-20">
-           <div className="mb-14">
+        <div className="mt-24 sm:mt-40 mb-20">
+           <div className="mb-10 sm:mb-14">
               <h4 className="text-[#4194D8] font-bold text-xs tracking-[0.2em] uppercase mb-4">Capabilities</h4>
-              <h2 className="text-4xl md:text-[44px] font-bold tracking-tight text-[#E8D1FF]">Precision Intelligence.</h2>
+              <h2 className="text-3xl sm:text-4xl md:text-[44px] font-bold tracking-tight text-[#E8D1FF]">Precision Intelligence.</h2>
            </div>
 
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -223,18 +223,18 @@ export function LandingPage() {
         </div>
 
         {/* CTA Section */}
-        <div className="py-24 text-center mt-20 relative">
-           <h2 className="text-5xl md:text-6xl font-bold tracking-tight text-[#E8D1FF] mb-6 leading-tight">
+        <div className="py-16 sm:py-24 text-center mt-12 sm:mt-20 relative">
+           <h2 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#E8D1FF] mb-6 leading-tight px-2">
               Experience the future <br className="hidden md:block" /> of human agency.
            </h2>
-           <p className="text-white/60 text-[17px] max-w-xl mx-auto mb-12 leading-relaxed">
+           <p className="text-white/60 text-[15px] sm:text-[17px] max-w-xl mx-auto mb-10 sm:mb-12 leading-relaxed px-2">
               Join over 150,000+ early adopters building a smarter life with Cortexa AI.<br className="hidden md:block" /> No setup required, just your curiosity.
            </p>
-           <div className="flex flex-wrap items-center justify-center gap-5">
-              <a href="https://expo.dev/artifacts/eas/i588AittjLuFRdLSuogXNJ.apk" download className="block rounded-full bg-[#E8D1FF] px-8 py-4 text-base font-bold text-[#140A1F] shadow-[0_0_20px_rgba(232,209,255,0.2)] transition hover:opacity-90 hover:scale-105 active:scale-95">
+           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5 px-4">
+              <a href="https://expo.dev/artifacts/eas/i588AittjLuFRdLSuogXNJ.apk" download className="block w-full sm:w-auto rounded-full bg-[#E8D1FF] px-8 py-4 text-base font-bold text-[#140A1F] shadow-[0_0_20px_rgba(232,209,255,0.2)] transition hover:opacity-90 hover:scale-105 active:scale-95 text-center">
                  Download our Mobile App
               </a>
-              <button className="rounded-full border border-white/10 bg-[#1A0B2E] hover:bg-[#2A153A] px-8 py-4 text-base font-bold text-[#E8D1FF] transition">
+              <button className="w-full sm:w-auto rounded-full border border-white/10 bg-[#1A0B2E] hover:bg-[#2A153A] px-8 py-4 text-base font-bold text-[#E8D1FF] transition">
                  Explore Desktop
               </button>
            </div>
