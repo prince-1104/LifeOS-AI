@@ -18,11 +18,16 @@ _STOPWORDS = frozenset(
         "do",
         "does",
         "how",
+        "i",
+        "in",
         "is",
         "it",
+        "me",
+        "much",
         "my",
         "of",
         "on",
+        "tell",
         "the",
         "to",
         "was",
@@ -39,7 +44,7 @@ _STOPWORDS = frozenset(
 
 def _query_tokens(query: str) -> list[str]:
     raw = re.findall(r"[a-zA-Z0-9]+", query.lower())
-    return [t for t in raw if t not in _STOPWORDS and len(t) > 0]
+    return [t for t in raw if t not in _STOPWORDS and len(t) > 1]
 
 
 def _token_matches_content(content: str, token: str) -> bool:
@@ -49,23 +54,54 @@ def _token_matches_content(content: str, token: str) -> bool:
         return True
     if len(token) > 2 and not token.endswith("s") and f"{token}s" in content:
         return True
+    # Handle common verb forms
+    if len(token) > 3 and token.endswith("ed") and token[:-2] in content:
+        return True
+    if len(token) > 3 and token.endswith("ing") and token[:-3] in content:
+        return True
     return False
 
 
+def _score_result(query: str, result: dict) -> float:
+    """Score a result by how many query tokens match its content.
+    Returns a ratio between 0.0 and 1.0."""
+    tokens = _query_tokens(query)
+    if not tokens:
+        return 1.0
+    content = (result.get("content") or "").lower()
+    matched = sum(1 for tok in tokens if _token_matches_content(content, tok))
+    return matched / len(tokens)
+
+
 def filter_results(query: str, results: list[dict]) -> list[dict]:
+    """Filter and rank results by relevance.
+    
+    Instead of requiring ALL tokens to match (too strict),
+    we require at least HALF of the tokens to match,
+    and fall back to the semantic results if nothing passes.
+    """
     tokens = _query_tokens(query)
     if not tokens or not results:
         return results
 
-    filtered: list[dict] = []
+    scored: list[tuple[float, dict]] = []
     for r in results:
-        content = (r.get("content") or "").lower()
-        if all(_token_matches_content(content, tok) for tok in tokens):
-            filtered.append(r)
+        score = _score_result(query, r)
+        if score > 0:  # At least one token matches
+            scored.append((score, r))
 
-    if filtered:
-        return filtered
-    return []
+    if scored:
+        # Sort by score descending (best matches first)
+        scored.sort(key=lambda x: x[0], reverse=True)
+        # Return results where at least 30% of tokens match
+        threshold = 0.3
+        good = [r for score, r in scored if score >= threshold]
+        if good:
+            return good
+
+    # Fall back to returning the original semantic results from Qdrant
+    # (they already passed the vector similarity threshold)
+    return results
 
 
 def _dedupe_by_content(results: list[dict]) -> list[dict]:
@@ -83,15 +119,15 @@ def _dedupe_by_content(results: list[dict]) -> list[dict]:
 def handle_query(results: list[dict]) -> str:
     rows = _dedupe_by_content(results)
     if not rows:
-        return "I couldn't find anything."
+        return "I couldn't find anything matching that in your memories."
 
     if len(rows) == 1:
         content = rows[0].get("content", "")
-        return f"You said: {content}"
+        return f"Here's what I found: {content}"
 
-    lines = ["I found multiple related memories:"]
+    lines = ["Here's what I found in your memories:"]
     for r in rows:
-        lines.append(f"- {r.get('content', '')}")
+        lines.append(f"• {r.get('content', '')}")
     return "\n".join(lines)
 
 
