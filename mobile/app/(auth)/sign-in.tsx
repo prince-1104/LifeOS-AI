@@ -56,8 +56,8 @@ export default function SignInScreen() {
         {/* Logo */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('@/assets/images/icon.png')}
-            style={styles.logoImage}
+            source={require('@/assets/images/hero_brand.jpg')}
+            style={styles.heroImage}
             resizeMode="contain"
           />
           <Text style={styles.title}>Cortexa AI</Text>
@@ -127,10 +127,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 40,
   },
-  logoImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
+  heroImage: {
+    width: 200,
+    height: 114,
+    borderRadius: 16,
     marginBottom: Spacing.lg,
   },
   title: {

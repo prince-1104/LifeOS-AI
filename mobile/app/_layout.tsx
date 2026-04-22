@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Text, Image } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
+import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/clerk-expo";
 import * as SecureStore from "expo-secure-store";
 import { Colors } from "@/constants/Theme";
 
@@ -48,16 +48,6 @@ function AuthGate() {
 }
 
 function RootLayoutNav() {
-  const { isLoaded } = useAuth();
-
-  if (!isLoaded) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={Colors.accent} />
-      </View>
-    );
-  }
-
   return (
     <>
       <AuthGate />
@@ -102,13 +92,29 @@ function RootLayoutNav() {
   );
 }
 
+function LoadingScreen() {
+  return (
+    <View style={styles.loading}>
+      <Image
+        source={require("@/assets/images/icon.png")}
+        style={styles.loadingLogo}
+        resizeMode="contain"
+      />
+      <ActivityIndicator size="large" color={Colors.accent} />
+      <Text style={styles.loadingText}>Loading Cortexa AI…</Text>
+    </View>
+  );
+}
+
 export default function RootLayout() {
   return (
     <ClerkProvider
       publishableKey={CLERK_PUBLISHABLE_KEY}
       tokenCache={tokenCache}
     >
-      <RootLayoutNav />
+      <ClerkLoaded>
+        <RootLayoutNav />
+      </ClerkLoaded>
     </ClerkProvider>
   );
 }
@@ -119,5 +125,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgDeep,
     justifyContent: "center",
     alignItems: "center",
+    gap: 16,
+  },
+  loadingLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  loadingText: {
+    color: Colors.textMuted,
+    fontSize: 14,
+    marginTop: 8,
   },
 });
