@@ -70,11 +70,11 @@ async def process(
     sym = "₹"
     if txn_type == "income":
         return (
-            f"Recorded income of {sym}{orch.amount:g}"
+            f"💵 Recorded income of {sym}{orch.amount:g}"
             + (f" from {source}." if source else ".")
         )
     return (
-        f"Recorded expense of {sym}{orch.amount:g}"
+        f"💸 Recorded expense of {sym}{orch.amount:g}"
         + f" for {category}"
         + (f" ({source})." if source else ".")
     )

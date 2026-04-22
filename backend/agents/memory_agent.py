@@ -30,4 +30,4 @@ async def process(
         raw_input=text,
         user_id=user_id,
     )
-    return f"Memory saved: {memory.content}"
+    return f"🧠 Memory saved: {memory.content}"

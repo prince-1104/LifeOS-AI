@@ -16,12 +16,12 @@ async def process(
 ) -> str:
     del user_input  # orchestrator fields are source of truth
     if not orch.time or not orch.task or not str(orch.task).strip():
-        return "I couldn't understand the reminder."
+        return "❌ I couldn't understand the reminder."
 
     try:
         reminder_time = parse_time(str(orch.time).strip(), user_tz=user_timezone)
     except ValueError:
-        return "I couldn't parse the reminder time."
+        return "❌ I couldn't parse the reminder time."
 
     task = str(orch.task).strip()
     await insert_reminder(db, user_id, task, reminder_time)
@@ -38,4 +38,4 @@ async def process(
     if display_time.date() != reminder_time.date():
         when = display_time.strftime("%b %d, %I:%M %p").lstrip("0") + time_suffix
 
-    return f"Reminder set for '{task}' at {when}."
+    return f"⏰ Reminder set for '{task}' at {when}."

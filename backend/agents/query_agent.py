@@ -146,15 +146,15 @@ def _dedupe_by_content(results: list[dict]) -> list[dict]:
 def handle_query(results: list[dict]) -> str:
     rows = _dedupe_by_content(results)
     if not rows:
-        return "I couldn't find anything matching that in your memories."
+        return "🔍 I searched your memories but couldn't find a match."
 
     if len(rows) == 1:
         content = rows[0].get("content", "")
-        return f"Here's what I found: {content}"
+        return f"🤖 {content}"
 
-    lines = ["Here's what I found in your memories:"]
+    lines = ["🤖 Here's what I found:"]
     for r in rows:
-        lines.append(f"• {r.get('content', '')}")
+        lines.append(f"  • {r.get('content', '')}")
     return "\n".join(lines)
 
 
@@ -185,11 +185,11 @@ async def _try_finance_db_answer(
 
     if "spend" in low and "today" in low:
         total = await svc.get_total_spent_today(uid)
-        return f"You spent ₹{total} today."
+        return f"💰 You spent ₹{total} today."
 
     if _is_week_spend_intent(low):
         total = await svc.get_total_spent_last_7_days(uid)
-        msg = f"You spent ₹{total} in the last 7 days."
+        msg = f"💰 You spent ₹{total} in the last 7 days."
         if total > thr:
             msg += " That's quite high compared to typical weeks."
         return msg
@@ -198,8 +198,8 @@ async def _try_finance_db_answer(
         rows = await svc.get_spending_by_category(uid, limit=10)
         top3 = rows[:3]
         if not top3:
-            return "No spending data found."
-        lines = ["Your top spending categories:"]
+            return "🔍 No spending data found."
+        lines = ["💰 Your top spending categories:"]
         for cat, amt in top3:
             lines.append(f"- {cat}: ₹{amt}")
         return "\n".join(lines)

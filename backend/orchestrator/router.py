@@ -108,5 +108,5 @@ async def route(
 
         return text, "reminder"
 
-    return "I didn't understand.", "unknown"
+    return "🤔 I didn't understand that. Try rephrasing?", "unknown"
 
