@@ -59,7 +59,7 @@ async def process(
         "type": txn_type,
         "amount": Decimal(str(orch.amount)),
         "category": category,
-        "note": None,
+        "note": user_input,
         "source": source,
         "event_time": datetime.now(timezone.utc),
     }

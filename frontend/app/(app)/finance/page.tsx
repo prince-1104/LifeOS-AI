@@ -90,6 +90,7 @@ export default function FinancePage() {
               <thead className="border-b border-white/[0.06] bg-white/[0.02] text-slate-400">
                 <tr>
                   <th className="px-4 py-3 font-medium">When</th>
+                  <th className="px-4 py-3 font-medium">Note</th>
                   <th className="px-4 py-3 font-medium">Type</th>
                   <th className="px-4 py-3 font-medium">Amount</th>
                   <th className="px-4 py-3 font-medium">Category</th>
@@ -111,6 +112,9 @@ export default function FinancePage() {
                            }
                         }}
                       />
+                    </td>
+                    <td className="px-4 py-3 text-slate-400 max-w-[200px] truncate" title={t.note ?? ""}>
+                      {t.note ?? "—"}
                     </td>
                     <td className="px-4 py-3 capitalize text-slate-300">
                       {t.type}
