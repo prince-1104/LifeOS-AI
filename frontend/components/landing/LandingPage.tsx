@@ -102,8 +102,8 @@ export function LandingPage() {
             </div>
           </div>
           
-          <div className="relative justify-self-center lg:justify-self-end mt-12 lg:mt-0 w-full max-w-[600px]">
-             <div className="group relative w-[120%] aspect-[4/3] -ml-[10%] mt-8 flex items-center justify-center cursor-pointer">
+          <div className="relative justify-self-center lg:justify-self-end mt-12 lg:mt-0 w-full max-w-[480px]">
+             <div className="group relative w-full aspect-[4/3] mt-8 flex items-center justify-center cursor-pointer">
                 <Image src="/hero_brand.jpg" alt="Cortexa AI" fill className="object-contain object-center transition-all duration-500 group-hover:drop-shadow-[0_0_50px_rgba(255,128,182,0.8)] group-hover:scale-105" priority />
              </div>
              {/* Subtle Glow behind mockup */}
