@@ -57,9 +57,8 @@ async def get_profile(
         return ProfileResponse(id=user.id, profile_complete=False)
 
     has_name = bool(row.get("first_name"))
-    has_age = row.get("age") is not None
-    has_gender = bool(row.get("gender"))
-    profile_complete = has_name and has_age and has_gender
+    # Age and gender are optional — profile is complete once user has a name
+    profile_complete = has_name
 
     return ProfileResponse(
         id=row["id"],

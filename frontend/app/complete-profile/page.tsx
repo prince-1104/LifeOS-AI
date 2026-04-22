@@ -18,9 +18,10 @@ export default function CompleteProfilePage() {
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [saving, setSaving] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [error, setError] = useState("");
 
-  const canSubmit = firstName.trim() && age && gender && !saving;
+  const canSubmit = firstName.trim() && !saving && !skipping;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,13 +38,15 @@ export default function CompleteProfilePage() {
         });
       }
 
-      // Update our backend with age & gender
-      await updateProfile(getToken, {
+      // Update our backend with all provided fields
+      const profileData: Record<string, unknown> = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        age: parseInt(age),
-        gender,
-      });
+      };
+      if (age) profileData.age = parseInt(age);
+      if (gender) profileData.gender = gender;
+
+      await updateProfile(getToken, profileData as Parameters<typeof updateProfile>[1]);
 
       router.push("/chat");
     } catch (err) {
@@ -53,9 +56,55 @@ export default function CompleteProfilePage() {
     }
   }
 
+  async function handleSkip() {
+    setSkipping(true);
+    setError("");
+
+    try {
+      // Save just the name from Clerk (if available) to mark profile as complete
+      const name = user?.firstName || "User";
+      if (user && user.firstName) {
+        await updateProfile(getToken, {
+          first_name: name,
+        });
+      } else {
+        // If no Clerk name, use a default
+        await updateProfile(getToken, {
+          first_name: name,
+        });
+      }
+      router.push("/chat");
+    } catch {
+      // If skip fails, just navigate anyway
+      router.push("/chat");
+    } finally {
+      setSkipping(false);
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="glass-panel w-full max-w-md rounded-2xl border border-white/[0.08] p-8 shadow-xl">
+      <div className="glass-panel w-full max-w-md rounded-2xl border border-white/[0.08] p-8 shadow-xl relative">
+        {/* Skip / Close button */}
+        <button
+          onClick={handleSkip}
+          disabled={skipping}
+          className="absolute top-4 right-4 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-400 transition hover:bg-white/[0.06] hover:text-zinc-200"
+          title="Skip for now"
+        >
+          {skipping ? (
+            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+              <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+            </svg>
+          ) : (
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+          Skip
+        </button>
+
         {/* Header */}
         <div className="mb-8 flex flex-col items-center gap-3">
           <Image
@@ -103,10 +152,11 @@ export default function CompleteProfilePage() {
             </div>
           </div>
 
-          {/* Age */}
+          {/* Age — optional */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-              Age <span className="text-red-400">*</span>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+              Age
+              <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-zinc-500">Optional</span>
             </label>
             <input
               type="number"
@@ -114,23 +164,23 @@ export default function CompleteProfilePage() {
               max={120}
               value={age}
               onChange={(e) => setAge(e.target.value)}
-              required
               placeholder="25"
               className="w-full rounded-xl border border-white/[0.08] bg-[#141414] px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             />
           </div>
 
-          {/* Gender */}
+          {/* Gender — optional */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-              Gender <span className="text-red-400">*</span>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+              Gender
+              <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-zinc-500">Optional</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
               {genderOptions.map((g) => (
                 <button
                   key={g}
                   type="button"
-                  onClick={() => setGender(g)}
+                  onClick={() => setGender(gender === g ? "" : g)}
                   className={[
                     "rounded-xl border px-4 py-2.5 text-sm font-medium transition",
                     gender === g
@@ -168,6 +218,15 @@ export default function CompleteProfilePage() {
             )}
           </button>
         </form>
+
+        {/* Skip link at bottom */}
+        <button
+          onClick={handleSkip}
+          disabled={skipping}
+          className="mt-4 w-full text-center text-xs text-zinc-500 transition hover:text-zinc-300"
+        >
+          {skipping ? "Skipping…" : "Skip for now — you can update this later in Profile"}
+        </button>
       </div>
     </div>
   );
