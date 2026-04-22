@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
 
     DEFAULT_USER_ID: str = "default"
-    QDRANT_SCORE_THRESHOLD: float = 0.15
+    QDRANT_SCORE_THRESHOLD: float = 0.20
 
     ORCHESTRATOR_MODEL: str = "gpt-4o-mini"
 

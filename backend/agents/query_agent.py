@@ -38,6 +38,28 @@ _STOPWORDS = frozenset(
         "which",
         "who",
         "why",
+        # Hindi stopwords
+        "mera",
+        "meri",
+        "mere",
+        "kaha",
+        "kahan",
+        "kya",
+        "hai",
+        "h",
+        "ka",
+        "ki",
+        "ke",
+        "ko",
+        "ye",
+        "wo",
+        "yeh",
+        "woh",
+        "se",
+        "ne",
+        "par",
+        "pe",
+        "bhi",
     }
 )
 
@@ -62,46 +84,51 @@ def _token_matches_content(content: str, token: str) -> bool:
     return False
 
 
-def _score_result(query: str, result: dict) -> float:
-    """Score a result by how many query tokens match its content.
-    Returns a ratio between 0.0 and 1.0."""
-    tokens = _query_tokens(query)
-    if not tokens:
-        return 1.0
-    content = (result.get("content") or "").lower()
-    matched = sum(1 for tok in tokens if _token_matches_content(content, tok))
-    return matched / len(tokens)
-
-
 def filter_results(query: str, results: list[dict]) -> list[dict]:
-    """Filter and rank results by relevance.
-    
-    Instead of requiring ALL tokens to match (too strict),
-    we require at least HALF of the tokens to match,
-    and fall back to the semantic results if nothing passes.
+    """Filter and rank results by keyword relevance.
+
+    Uses the Qdrant similarity score (_qdrant_score) as the primary signal.
+    If keyword tokens are found, boosts matching results.
+    Only returns the top result(s) from semantic search — avoids dumping everything.
     """
-    tokens = _query_tokens(query)
-    if not tokens or not results:
+    if not results:
         return results
 
-    scored: list[tuple[float, dict]] = []
-    for r in results:
-        score = _score_result(query, r)
-        if score > 0:  # At least one token matches
-            scored.append((score, r))
+    tokens = _query_tokens(query)
 
-    if scored:
-        # Sort by score descending (best matches first)
-        scored.sort(key=lambda x: x[0], reverse=True)
-        # Return results where at least 30% of tokens match
-        threshold = 0.3
-        good = [r for score, r in scored if score >= threshold]
-        if good:
-            return good
+    # If we have keyword tokens, try to filter by them
+    if tokens:
+        scored: list[tuple[float, dict]] = []
+        for r in results:
+            content = (r.get("content") or "").lower()
+            matched = sum(1 for tok in tokens if _token_matches_content(content, tok))
+            ratio = matched / len(tokens)
+            if ratio >= 0.5:  # At least half the meaningful tokens match
+                scored.append((ratio, r))
 
-    # Fall back to returning the original semantic results from Qdrant
-    # (they already passed the vector similarity threshold)
-    return results
+        if scored:
+            scored.sort(key=lambda x: x[0], reverse=True)
+            return [r for _, r in scored]
+
+    # No keyword match — rely on Qdrant semantic similarity.
+    # Only return the BEST result (highest score) to avoid noise.
+    if len(results) >= 1:
+        # Sort by qdrant score descending (stored in _qdrant_score)
+        sorted_results = sorted(
+            results,
+            key=lambda r: r.get("_qdrant_score", 0),
+            reverse=True,
+        )
+        best = sorted_results[0]
+        best_score = best.get("_qdrant_score", 0)
+
+        # Only return if the best result has a strong similarity
+        if best_score >= 0.30:
+            # Include any other results within 90% of the best score
+            cutoff = best_score * 0.90
+            return [r for r in sorted_results if r.get("_qdrant_score", 0) >= cutoff]
+
+    return []
 
 
 def _dedupe_by_content(results: list[dict]) -> list[dict]:
@@ -193,7 +220,12 @@ async def process(
             return finance_reply
 
     payloads = await search_memory_payloads(query=text, user_id=uid)
+    # Keep the qdrant score for ranking, but rename to avoid confusion
     for p in payloads:
-        p.pop("_score", None)
+        score = p.pop("_score", None)
+        p["_qdrant_score"] = score if score is not None else 0
     refined = filter_results(text, payloads)
+    # Clean up internal score before passing to handler
+    for r in refined:
+        r.pop("_qdrant_score", None)
     return handle_query(refined)
