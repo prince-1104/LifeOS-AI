@@ -35,6 +35,9 @@ class PlanConfig:
     priority_processing: bool
     long_term_reminder: bool  # reminders beyond 24h
 
+    # ── Input length limit (characters per message) ────────────────────
+    max_input_chars: int = 500  # prevents token waste on long messages
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  PLAN DEFINITIONS
@@ -56,6 +59,7 @@ PLANS: dict[str, PlanConfig] = {
         premium_tts=False,
         priority_processing=False,
         long_term_reminder=False,
+        max_input_chars=100,
     ),
     "basic_29": PlanConfig(
         name="basic_29",
@@ -72,6 +76,7 @@ PLANS: dict[str, PlanConfig] = {
         premium_tts=False,
         priority_processing=False,
         long_term_reminder=False,
+        max_input_chars=200,
     ),
     "standard_49": PlanConfig(
         name="standard_49",
@@ -88,6 +93,7 @@ PLANS: dict[str, PlanConfig] = {
         premium_tts=False,
         priority_processing=False,
         long_term_reminder=True,
+        max_input_chars=300,
     ),
     "pro_99": PlanConfig(
         name="pro_99",
@@ -104,6 +110,7 @@ PLANS: dict[str, PlanConfig] = {
         premium_tts=False,
         priority_processing=False,
         long_term_reminder=True,
+        max_input_chars=500,
     ),
     "premium_499": PlanConfig(
         name="premium_499",

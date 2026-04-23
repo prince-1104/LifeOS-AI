@@ -10,7 +10,7 @@ import {
   Fragment,
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { processInput, type ProcessResponse } from "@/lib/api";
+import { processInput, getSubscriptionStatus, type ProcessResponse } from "@/lib/api";
 import {
   loadChatHistory,
   saveChatHistory,
@@ -44,6 +44,7 @@ export function ChatBox() {
   });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [maxChars, setMaxChars] = useState(100); // default to free plan limit
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const canPersistRef = useRef(false);
@@ -69,6 +70,28 @@ export function ChatBox() {
     setTimeout(() => scrollToBottom("instant"), 50);
   }, [userLoaded, user?.id]);
 
+  // Fetch plan-specific character limit
+  useEffect(() => {
+    if (!userLoaded || !user?.id) return;
+    getSubscriptionStatus(getToken)
+      .then((status) => {
+        // Plan-based limits: free=100, basic=200, standard=300, pro=500, premium+=500
+        const PLAN_CHAR_LIMITS: Record<string, number> = {
+          free: 100,
+          basic_29: 200,
+          standard_49: 300,
+          pro_99: 500,
+          premium_499: 500,
+          ultra_999: 500,
+          elite_1299: 500,
+          apex_1999: 1000,
+        };
+        const planName = status?.plan?.name || "free";
+        setMaxChars(PLAN_CHAR_LIMITS[planName] ?? 100);
+      })
+      .catch(() => setMaxChars(100));
+  }, [userLoaded, user?.id, getToken]);
+
   useEffect(() => {
     if (!canPersistRef.current || !session.userId) return;
     saveChatHistory(session.userId, session.rows);
@@ -81,6 +104,7 @@ export function ChatBox() {
   const send = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed || !session.userId || loading || !userLoaded) return;
+    if (trimmed.length > maxChars) return; // block oversized messages
 
     const userMsg: ChatRow = {
       id: crypto.randomUUID(),
@@ -133,7 +157,7 @@ export function ChatBox() {
     } finally {
       setLoading(false);
     }
-  }, [input, session.userId, loading, userLoaded, getToken]);
+  }, [input, session.userId, loading, userLoaded, getToken, maxChars]);
 
   const { rows, userId } = session;
   const activeDateId = searchParams?.get("date") || generateDateId(Date.now());
@@ -225,12 +249,16 @@ export function ChatBox() {
       </div>
 
       <div className="border-t border-white/[0.06] bg-[#0a0a0a]/95 px-4 py-4 backdrop-blur-md md:px-8">
-        <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
+          <div className="flex items-end gap-2">
           <div className="relative flex-1">
             <input
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.length <= maxChars + 10) setInput(val);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -239,7 +267,11 @@ export function ChatBox() {
               }}
               placeholder="Ask anything about your day..."
               disabled={!userId || loading}
-              className="w-full rounded-full border border-white/[0.08] bg-[#141414] px-5 py-3.5 pr-24 text-[15px] text-zinc-100 placeholder:text-zinc-500 focus:border-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50"
+              className={`w-full rounded-full border bg-[#141414] px-5 py-3.5 pr-24 text-[15px] text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 disabled:opacity-50 ${
+                input.length > maxChars
+                  ? "border-rose-500/50 focus:border-rose-500/60 focus:ring-rose-500/20"
+                  : "border-white/[0.08] focus:border-indigo-500/40 focus:ring-indigo-500/20"
+              }`}
             />
             <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
               <button
@@ -253,13 +285,29 @@ export function ChatBox() {
               <button
                 type="button"
                 onClick={() => void send()}
-                disabled={!input.trim() || !userId || loading}
+                disabled={!input.trim() || input.trim().length > maxChars || !userId || loading}
                 className="rounded-full bg-indigo-600 p-2.5 text-white shadow-lg shadow-indigo-900/30 transition hover:bg-indigo-500 disabled:opacity-40"
                 aria-label="Send"
               >
                 <SendIcon />
               </button>
             </div>
+          </div>
+          </div>
+          {/* Character counter */}
+          <div className="flex items-center justify-end gap-2 px-2">
+            <span className={`text-xs font-medium tabular-nums ${
+              input.length > maxChars
+                ? "text-rose-400"
+                : input.length > maxChars * 0.8
+                  ? "text-amber-400/80"
+                  : "text-zinc-600"
+            }`}>
+              {input.length}/{maxChars}
+            </span>
+            {input.length > maxChars && (
+              <span className="text-xs text-rose-400/80">Upgrade plan for longer messages</span>
+            )}
           </div>
         </div>
       </div>

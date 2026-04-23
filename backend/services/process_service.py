@@ -35,7 +35,6 @@ logger = logging.getLogger(__name__)
 
 MSG_TEMPORARY = "Temporary issue. Please try again."
 MSG_EMPTY = "Please enter a message."
-MSG_TOO_LONG = "Message is too long (max 500 characters)."
 MSG_RATE_LIMIT = "Too many requests. Please try again later."
 
 
@@ -67,7 +66,6 @@ async def process_input(
 ) -> dict:
     input_text = input_text.strip()
     settings = get_settings()
-    max_len = settings.MAX_INPUT_LENGTH
 
     if len(input_text) == 0:
         try:
@@ -84,25 +82,6 @@ async def process_input(
             success=False,
             type_str="error",
             response=MSG_EMPTY,
-            request_id=request_id,
-            data=None,
-        )
-
-    if len(input_text) > max_len:
-        try:
-            await log_error(
-                db,
-                request_id=request_id,
-                user_id=user_id,
-                stage="validation",
-                message=f"input exceeds {max_len} characters",
-            )
-        except Exception:
-            logger.exception("log_error failed for validation length")
-        return _envelope(
-            success=False,
-            type_str="error",
-            response=MSG_TOO_LONG,
             request_id=request_id,
             data=None,
         )
@@ -134,6 +113,34 @@ async def process_input(
         # Fallback to free plan on error — don't block the request
         from plans import get_plan
         plan_config = get_plan("free")
+
+    # ── Per-plan message length limit (prevents token waste) ──────────
+    max_chars = plan_config.max_input_chars
+    if len(input_text) > max_chars:
+        try:
+            await log_error(
+                db,
+                request_id=request_id,
+                user_id=user_id,
+                stage="validation",
+                message=f"input exceeds {max_chars} characters (plan: {plan_config.name})",
+            )
+        except Exception:
+            logger.exception("log_error failed for validation length")
+
+        from plans import get_next_upgrade
+        next_plan = get_next_upgrade(plan_config.name)
+        upgrade_hint = ""
+        if next_plan:
+            upgrade_hint = f" Upgrade to {next_plan.display_name} for up to {next_plan.max_input_chars} characters."
+
+        return _envelope(
+            success=False,
+            type_str="limit",
+            response=f"Message is too long (max {max_chars} characters on {plan_config.display_name} plan).{upgrade_hint}",
+            request_id=request_id,
+            data={"reason": "input_too_long", "max_chars": max_chars, "upgrade_plan": next_plan.name if next_plan else None},
+        )
 
     # 1. Daily request limit
     req_check = await check_daily_request_limit(db, user_id, plan_config)
