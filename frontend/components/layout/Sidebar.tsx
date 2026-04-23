@@ -178,7 +178,7 @@ export function Sidebar({
       {/* Download Mobile App */}
       <div className="px-4 pb-4">
         <a
-          href="https://expo.dev/artifacts/eas/xmMGHirWuLvWSA5X9bd8S4.apk"
+          href="https://expo.dev/artifacts/eas/v66JBjsKEZHhHhasAs88nW.apk"
           target="_blank"
           rel="noopener noreferrer"
           className="group relative flex items-center justify-between overflow-hidden rounded-xl border border-indigo-500/20 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 px-4 py-3 transition hover:border-indigo-500/40 hover:from-indigo-500/20 hover:to-purple-500/20"
