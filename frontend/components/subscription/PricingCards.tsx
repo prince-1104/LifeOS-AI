@@ -68,10 +68,15 @@ function SinglePlanCard({
     const isFree = plan.price_inr_monthly === 0;
     const price = cycle === "monthly" ? plan.price_inr_monthly : plan.price_inr_yearly;
     
+    // Original price if user paid monthly for 12 months (used to show yearly savings)
+    const originalYearlyPrice = plan.price_inr_monthly * 12;
+    const hasYearlySavings = cycle === "yearly" && !isFree && plan.price_inr_yearly < originalYearlyPrice;
+    const yearlySavingsPercent = hasYearlySavings ? Math.round((1 - plan.price_inr_yearly / originalYearlyPrice) * 100) : 0;
+
     let displayPrice = (isFree ? 0 : price);
     let discountedPrice = displayPrice;
     
-    // Only apply discount if it's applicable to this plan
+    // Only apply promo discount if it's applicable to this plan
     const isApplicable = discountPercent && (!applicablePlans || applicablePlans.length === 0 || applicablePlans.includes(plan.name));
     
     if (isApplicable && !isFree) {
@@ -95,11 +100,17 @@ function SinglePlanCard({
                 <h3 className={`text-sm font-bold uppercase tracking-widest ${isRecommended ? 'text-cyan-400' : 'text-zinc-400'}`}>
                     {plan.display_name}
                 </h3>
-                <div className="mt-4 flex items-center justify-center gap-1">
+                <div className="mt-4 flex flex-col items-center justify-center gap-1">
+                    {/* Promo discount applied */}
                     {isApplicable && !isFree ? (
                         <div className="flex flex-col items-center">
+                            {hasYearlySavings && (
+                                <span className="text-xs text-zinc-600 line-through decoration-zinc-500/50">
+                                    ₹{originalYearlyPrice}/yr
+                                </span>
+                            )}
                             <span className="text-sm text-zinc-500 line-through decoration-rose-500/50 decoration-2">
-                                ₹{price}
+                                ₹{price}{cycle === "yearly" ? "/yr" : "/mo"}
                             </span>
                             <div className="flex items-center gap-1">
                                 <span className="text-4xl font-extrabold tracking-tight text-teal-400">
@@ -110,7 +121,26 @@ function SinglePlanCard({
                                 </span>
                             </div>
                         </div>
+                    ) : hasYearlySavings ? (
+                        /* Yearly savings (no promo) — show monthly×12 crossed out */
+                        <div className="flex flex-col items-center">
+                            <span className="text-sm text-zinc-500 line-through decoration-rose-500/50 decoration-2">
+                                ₹{originalYearlyPrice}
+                            </span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-4xl font-extrabold tracking-tight text-white">
+                                    ₹{price}
+                                </span>
+                                <span className="text-sm font-medium text-zinc-500">
+                                    /yr
+                                </span>
+                            </div>
+                            <span className="mt-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/25 px-3 py-0.5 text-[11px] font-bold text-emerald-400">
+                                Save {yearlySavingsPercent}% · ₹{originalYearlyPrice - plan.price_inr_yearly} off
+                            </span>
+                        </div>
                     ) : (
+                        /* Monthly or free — regular display */
                         <>
                             <span className="text-4xl font-extrabold tracking-tight text-white">
                                 {isFree ? "₹0" : `₹${price}`}
