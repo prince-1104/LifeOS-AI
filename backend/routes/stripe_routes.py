@@ -721,7 +721,7 @@ async def verify_order(
         return VerifyOrderResponse(
             status="ERROR",
             plan_activated=False,
-            message="Could not verify payment. Please contact support.",
+            message="Could not verify payment. Please contact support at doptonin@gmail.com",
         )
 
 

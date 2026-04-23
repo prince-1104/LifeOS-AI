@@ -81,7 +81,7 @@ export default function BillingPage() {
         if (attempt >= MAX_ATTEMPTS) {
           setVerifyMessage(
             "Payment verification is taking longer than expected. " +
-              "Your plan will be activated shortly. If not, please contact support."
+              "Your plan will be activated shortly. If not, please contact support at doptonin@gmail.com"
           );
         } else {
           setVerifyMessage(result.message || "Could not verify payment.");
@@ -96,7 +96,7 @@ export default function BillingPage() {
         }
         setVerifyMessage(
           "Payment verification failed. Your plan will be activated shortly via webhook. " +
-            "If your plan is not updated within 5 minutes, please contact support."
+            "If your plan is not updated within 5 minutes, please contact support at doptonin@gmail.com"
         );
         setVerifying(false);
         return false;
@@ -133,10 +133,18 @@ export default function BillingPage() {
               }
             }
           } else {
-            // No order ID found — show generic success but warn
-            setVerifyMessage(
-              "Payment may still be processing. Refresh in a moment."
-            );
+            // No order ID in URL — try using the one from DB (cashfree_subscription_id)
+            if (data.cashfree_subscription_id) {
+              verifyAttemptRef.current += 1;
+              if (verifyAttemptRef.current <= 1) {
+                await new Promise((r) => setTimeout(r, 1500));
+                await verifyPayment(data.cashfree_subscription_id);
+              }
+            } else {
+              setVerifyMessage(
+                "Payment may still be processing. If your plan is not updated within 5 minutes, please contact support at doptonin@gmail.com"
+              );
+            }
           }
         }
       } catch (e) {
