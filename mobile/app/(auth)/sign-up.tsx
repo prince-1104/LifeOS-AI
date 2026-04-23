@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Image,
 } from "react-native";
-import { useSignUp } from "@clerk/clerk-expo";
+import { useSignUp } from "@clerk/expo";
 import { useRouter, Link } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
 

@@ -12,7 +12,7 @@ import {
   Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth, useUser } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
 import { processInput, type ProcessResponse, type ProcessType } from "@/lib/api";

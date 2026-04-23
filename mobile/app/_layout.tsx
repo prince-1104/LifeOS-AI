@@ -2,27 +2,9 @@ import { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet, Text, Image } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
-import * as SecureStore from "expo-secure-store";
+import { ClerkProvider, useAuth } from "@clerk/expo";
+import { tokenCache } from "@clerk/expo/token-cache";
 import { Colors } from "@/constants/Theme";
-
-// ── Clerk token cache using expo-secure-store ───────────────────────────
-const tokenCache = {
-  async getToken(key: string): Promise<string | null> {
-    try {
-      return await SecureStore.getItemAsync(key);
-    } catch {
-      return null;
-    }
-  },
-  async saveToken(key: string, value: string): Promise<void> {
-    try {
-      await SecureStore.setItemAsync(key, value);
-    } catch {
-      // silently fail
-    }
-  },
-};
 
 // 🔑 Clerk publishable key (production — same Clerk app as the web frontend)
 const CLERK_PUBLISHABLE_KEY =

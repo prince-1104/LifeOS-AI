@@ -1,5 +1,5 @@
 import { Redirect } from "expo-router";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@clerk/expo";
 import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
 import { Colors } from "@/constants/Theme";
 
