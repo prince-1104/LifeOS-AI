@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { getPlans, createSubscription, validatePromoCode, type PlanInfo, getSubscriptionStatus, ValidatePromoResponse } from "@/lib/api";
+import { getPlans, createSubscription, verifyOrder, validatePromoCode, type PlanInfo, getSubscriptionStatus, ValidatePromoResponse } from "@/lib/api";
 import { PricingCards } from "@/components/subscription/PricingCards";
 import { useRouter } from "next/navigation";
 import { load as loadCashfree } from "@cashfreepayments/cashfree-js";
@@ -117,7 +117,13 @@ export default function PricingPage() {
             console.log("[Payment] Redirecting...");
           } else if (result.paymentDetails) {
             console.log("[Payment] Payment completed:", result.paymentDetails);
-            router.push("/billing?payment=success");
+            // Verify payment directly before redirecting
+            try {
+              await verifyOrder(getToken, res.subscription_id);
+            } catch (verifyErr) {
+              console.warn("[Payment] Verify after modal failed, billing page will retry:", verifyErr);
+            }
+            router.push(`/billing?payment=success&order_id=${res.subscription_id}`);
           }
         } catch (sdkError: any) {
           console.error("[Payment] SDK error:", sdkError);

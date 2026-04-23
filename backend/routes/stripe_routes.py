@@ -316,7 +316,7 @@ async def create_subscription(
                 "customer_name": f"{user.first_name or ''} {user.last_name or ''}".strip() or "User",
             },
             "order_meta": {
-                "return_url": f"{return_url}?order_id={order_id}",
+                "return_url": f"{return_url}?status=success&order_id={order_id}",
             },
             "order_note": f"Plan: {plan.display_name} ({req.billing_cycle})",
             "order_tags": {
@@ -580,6 +580,149 @@ async def _handle_subscription_status_changed(db: AsyncSession, event_data: dict
             user.plan = plan_name
             user.plan_start_date = datetime.now(timezone.utc)
             await db.commit()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  VERIFY ORDER (fallback when webhooks fail/delay)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class VerifyOrderRequest(BaseModel):
+    order_id: str
+
+
+class VerifyOrderResponse(BaseModel):
+    status: str  # "PAID", "ACTIVE", "PENDING", "FAILED", etc.
+    plan_activated: bool
+    plan_name: str | None = None
+    message: str = ""
+
+
+@router.post("/payments/verify-order", response_model=VerifyOrderResponse)
+async def verify_order(
+    req: VerifyOrderRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_authenticated_user_id),
+):
+    """
+    Verify payment status directly with Cashfree and activate plan if paid.
+
+    This is a CRITICAL fallback for when webhooks fail, are delayed, or have
+    signature verification issues. The frontend calls this after payment
+    completion to guarantee the user's plan gets activated.
+
+    Flow:
+    1. Check if the order belongs to this user
+    2. Call Cashfree API to get order status
+    3. If PAID → activate the plan in DB
+    4. Return current status to frontend
+    """
+    order_id = req.order_id.strip()
+    if not order_id:
+        raise HTTPException(status_code=400, detail="order_id is required")
+
+    # Verify this order belongs to the requesting user
+    stmt = select(User).where(User.id == user_id)
+    user = (await db.execute(stmt)).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.stripe_subscription_id != order_id:
+        # Security: don't let users verify orders that aren't theirs
+        raise HTTPException(status_code=403, detail="Order does not belong to this user")
+
+    # Check if plan is already activated (avoid redundant API calls)
+    if user.plan and user.plan != "free" and user.plan_end_date:
+        from datetime import datetime, timezone as tz
+        if user.plan_end_date > datetime.now(tz.utc):
+            plan_config = get_plan(user.plan)
+            return VerifyOrderResponse(
+                status="PAID",
+                plan_activated=True,
+                plan_name=plan_config.display_name,
+                message="Plan is already active",
+            )
+
+    # Call Cashfree API to verify order status
+    try:
+        base_url = _cashfree_base_url()
+        headers = _cashfree_headers()
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                f"{base_url}/orders/{order_id}",
+                headers=headers,
+            )
+
+            print(f"[CASHFREE] Verify order {order_id}: {resp.status_code} {resp.text[:500]}", flush=True)
+
+            if resp.status_code != 200:
+                return VerifyOrderResponse(
+                    status="UNKNOWN",
+                    plan_activated=False,
+                    message=f"Could not verify order (HTTP {resp.status_code})",
+                )
+
+            order_data = resp.json()
+            order_status = order_data.get("order_status", "").upper()
+
+            print(f"[CASHFREE] Order {order_id} status: {order_status}", flush=True)
+
+            if order_status == "PAID":
+                # Extract plan info from order tags
+                tags = order_data.get("order_tags", {})
+                plan_name = tags.get("plan_name", "")
+                billing_cycle = tags.get("billing_cycle", "monthly")
+
+                # Activate the plan
+                from dateutil.relativedelta import relativedelta
+                now = datetime.now(timezone.utc)
+
+                if plan_name and plan_name in PLANS:
+                    user.plan = plan_name
+                user.plan_start_date = now
+
+                if billing_cycle == "yearly":
+                    user.plan_end_date = now + relativedelta(years=1)
+                else:
+                    user.plan_end_date = now + relativedelta(months=1)
+
+                await db.commit()
+
+                plan_config = get_plan(user.plan or "free")
+                print(f"[CASHFREE] Plan '{user.plan}' activated via verify for user {user.id} (order: {order_id})", flush=True)
+
+                return VerifyOrderResponse(
+                    status="PAID",
+                    plan_activated=True,
+                    plan_name=plan_config.display_name,
+                    message="Payment verified and plan activated!",
+                )
+
+            elif order_status in ("ACTIVE", "PENDING"):
+                return VerifyOrderResponse(
+                    status=order_status,
+                    plan_activated=False,
+                    message="Payment is still being processed. Please wait a moment.",
+                )
+
+            else:
+                return VerifyOrderResponse(
+                    status=order_status or "UNKNOWN",
+                    plan_activated=False,
+                    message=f"Order status: {order_status}",
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[CASHFREE] Verify order error: {str(e)}", flush=True)
+        import traceback; traceback.print_exc()
+        return VerifyOrderResponse(
+            status="ERROR",
+            plan_activated=False,
+            message="Could not verify payment. Please contact support.",
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════

@@ -21,6 +21,7 @@ import {
   getSubscriptionStatus,
   validatePromoCode,
   createSubscription,
+  verifyOrder,
   type PlanInfo,
   type ValidatePromoResponse,
 } from "@/lib/api";
@@ -222,19 +223,67 @@ export default function PricingScreen() {
         if (res.authorization_link) {
           await WebBrowser.openBrowserAsync(res.authorization_link);
 
-          // After user returns, check subscription status
+          // After user returns, verify payment directly with Cashfree
           try {
-            const newStatus = await getSubscriptionStatus(getToken);
-            if (newStatus.plan.name !== "free" && newStatus.is_active) {
+            // Small delay to let payment process
+            await new Promise((r) => setTimeout(r, 2000));
+
+            // Verify and activate via server-side Cashfree API check
+            const verifyResult = await verifyOrder(getToken, res.subscription_id);
+
+            if (verifyResult.plan_activated) {
               Alert.alert(
                 "Success! 🎉",
-                `Your ${newStatus.plan.display_name} plan is now active!`,
+                `Your ${verifyResult.plan_name || "premium"} plan is now active!`,
                 [{ text: "OK", onPress: () => router.back() }]
               );
-              setCurrentPlan(newStatus.plan.name);
+              const newStatus = await getSubscriptionStatus(getToken).catch(() => null);
+              if (newStatus?.plan) setCurrentPlan(newStatus.plan.name);
+            } else if (verifyResult.status === "PENDING" || verifyResult.status === "ACTIVE") {
+              // Payment still processing — retry after delay
+              await new Promise((r) => setTimeout(r, 3000));
+              const retryResult = await verifyOrder(getToken, res.subscription_id);
+              if (retryResult.plan_activated) {
+                Alert.alert(
+                  "Success! 🎉",
+                  `Your ${retryResult.plan_name || "premium"} plan is now active!`,
+                  [{ text: "OK", onPress: () => router.back() }]
+                );
+                const newStatus = await getSubscriptionStatus(getToken).catch(() => null);
+                if (newStatus?.plan) setCurrentPlan(newStatus.plan.name);
+              } else {
+                Alert.alert(
+                  "Payment Processing",
+                  "Your payment is being processed. Your plan will be activated shortly."
+                );
+              }
+            } else {
+              // Check subscription status as final fallback
+              const newStatus = await getSubscriptionStatus(getToken).catch(() => null);
+              if (newStatus?.plan?.name !== "free" && newStatus?.is_active) {
+                Alert.alert(
+                  "Success! 🎉",
+                  `Your ${newStatus.plan.display_name} plan is now active!`,
+                  [{ text: "OK", onPress: () => router.back() }]
+                );
+                setCurrentPlan(newStatus.plan.name);
+              }
             }
           } catch {
-            // Status check failed silently
+            // Verification failed — check status as fallback
+            try {
+              const newStatus = await getSubscriptionStatus(getToken);
+              if (newStatus.plan.name !== "free" && newStatus.is_active) {
+                Alert.alert(
+                  "Success! 🎉",
+                  `Your ${newStatus.plan.display_name} plan is now active!`,
+                  [{ text: "OK", onPress: () => router.back() }]
+                );
+                setCurrentPlan(newStatus.plan.name);
+              }
+            } catch {
+              // Silent fail
+            }
           }
         } else {
           setError("No payment link received. Please try again.");

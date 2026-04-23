@@ -1,26 +1,144 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { getSubscriptionStatus, type SubscriptionStatus } from "@/lib/api";
+import { getSubscriptionStatus, verifyOrder, type SubscriptionStatus } from "@/lib/api";
 import { UsageBars } from "@/components/subscription/UsageBars";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 export default function BillingPage() {
   const { getToken } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState("");
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const verifyAttemptRef = useRef(0);
 
-  const isSuccess = searchParams?.get("status") === "success";
+  // Detect payment return — support both ?status=success and ?payment=success and ?order_id=xxx
+  const isReturnFromPayment =
+    searchParams?.get("status") === "success" ||
+    searchParams?.get("payment") === "success" ||
+    !!searchParams?.get("order_id");
+
+  const orderIdFromUrl = searchParams?.get("order_id") || null;
+
+  /**
+   * Verify the payment with Cashfree and activate the plan.
+   * Retries up to 5 times with increasing delays to handle webhook race conditions.
+   */
+  const verifyPayment = useCallback(
+    async (orderId: string, attempt: number = 1): Promise<boolean> => {
+      const MAX_ATTEMPTS = 5;
+      const DELAYS = [0, 2000, 4000, 6000, 8000]; // progressive delays
+
+      try {
+        setVerifying(true);
+        setVerifyMessage(
+          attempt === 1
+            ? "Verifying your payment..."
+            : `Verifying payment (attempt ${attempt}/${MAX_ATTEMPTS})...`
+        );
+
+        const result = await verifyOrder(getToken, orderId);
+
+        if (result.plan_activated) {
+          setVerifyMessage("✅ Payment verified! Plan activated.");
+          setPaymentSuccess(true);
+          // Reload subscription status to show updated plan
+          const freshStatus = await getSubscriptionStatus(getToken);
+          setStatus(freshStatus);
+          setVerifying(false);
+          return true;
+        }
+
+        if (result.status === "PAID") {
+          // Already paid but somehow not activated — this shouldn't happen
+          // but the verify endpoint handles it
+          setVerifyMessage("✅ Payment confirmed!");
+          setPaymentSuccess(true);
+          const freshStatus = await getSubscriptionStatus(getToken);
+          setStatus(freshStatus);
+          setVerifying(false);
+          return true;
+        }
+
+        if (
+          (result.status === "ACTIVE" || result.status === "PENDING") &&
+          attempt < MAX_ATTEMPTS
+        ) {
+          // Payment still processing — retry after delay
+          setVerifyMessage("Payment is processing... please wait.");
+          await new Promise((r) => setTimeout(r, DELAYS[attempt] || 3000));
+          return verifyPayment(orderId, attempt + 1);
+        }
+
+        // Failed or exhausted retries
+        if (attempt >= MAX_ATTEMPTS) {
+          setVerifyMessage(
+            "Payment verification is taking longer than expected. " +
+              "Your plan will be activated shortly. If not, please contact support."
+          );
+        } else {
+          setVerifyMessage(result.message || "Could not verify payment.");
+        }
+        setVerifying(false);
+        return false;
+      } catch (e) {
+        console.error("[Billing] Verify error:", e);
+        if (attempt < MAX_ATTEMPTS) {
+          await new Promise((r) => setTimeout(r, DELAYS[attempt] || 3000));
+          return verifyPayment(orderId, attempt + 1);
+        }
+        setVerifyMessage(
+          "Payment verification failed. Your plan will be activated shortly via webhook. " +
+            "If your plan is not updated within 5 minutes, please contact support."
+        );
+        setVerifying(false);
+        return false;
+      }
+    },
+    [getToken]
+  );
 
   useEffect(() => {
     async function load() {
       try {
         const data = await getSubscriptionStatus(getToken);
         setStatus(data);
+
+        // If user just returned from payment, verify and activate
+        if (isReturnFromPayment) {
+          const orderId = orderIdFromUrl || data.cashfree_subscription_id;
+
+          if (orderId) {
+            // Check if plan is already active (webhook may have beaten us)
+            const isAlreadyPaid =
+              data.plan.price_inr_monthly > 0 && data.is_active;
+
+            if (isAlreadyPaid) {
+              setPaymentSuccess(true);
+              setVerifyMessage("✅ Your plan is active!");
+            } else {
+              // Need to verify — webhook hasn't fired yet
+              verifyAttemptRef.current += 1;
+              if (verifyAttemptRef.current <= 1) {
+                // Small delay to give webhook a chance to process first
+                await new Promise((r) => setTimeout(r, 1500));
+                await verifyPayment(orderId);
+              }
+            }
+          } else {
+            // No order ID found — show generic success but warn
+            setVerifyMessage(
+              "Payment may still be processing. Refresh in a moment."
+            );
+          }
+        }
       } catch (e) {
         setError("Failed to load billing status");
       } finally {
@@ -28,7 +146,7 @@ export default function BillingPage() {
       }
     }
     load();
-  }, [getToken]);
+  }, [getToken, isReturnFromPayment, orderIdFromUrl, verifyPayment]);
 
   if (loading) {
     return (
@@ -78,16 +196,37 @@ export default function BillingPage() {
     <div className="flex-1 overflow-y-auto px-4 py-8 md:px-8 lg:py-12">
       <div className="mx-auto max-w-5xl">
 
-        {isSuccess && (
+        {/* Payment verification / success banner */}
+        {verifying && (
+          <div className="mb-8 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-cyan-200 flex items-center gap-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-cyan-400 border-t-transparent" />
+            <div>
+              <p className="font-medium text-cyan-100">Verifying Payment</p>
+              <p className="text-sm">{verifyMessage}</p>
+            </div>
+          </div>
+        )}
+
+        {paymentSuccess && !verifying && (
           <div className="mb-8 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-emerald-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
                   <div className="rounded-full bg-emerald-500/20 p-1">
                     <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                   </div>
                   <div>
-                    <p className="font-medium text-emerald-100">Payment Authorized!</p>
-                    <p className="text-sm">Your subscription mandate was successful. Your plan is now active.</p>
+                    <p className="font-medium text-emerald-100">Payment Successful!</p>
+                    <p className="text-sm">{verifyMessage || "Your subscription is now active."}</p>
                   </div>
+              </div>
+          </div>
+        )}
+
+        {!paymentSuccess && !verifying && isReturnFromPayment && verifyMessage && (
+          <div className="mb-8 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-200 flex items-center gap-3">
+              <svg className="w-5 h-5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>
+              <div>
+                <p className="font-medium text-amber-100">Payment Processing</p>
+                <p className="text-sm">{verifyMessage}</p>
               </div>
           </div>
         )}
@@ -130,8 +269,12 @@ export default function BillingPage() {
                   <span className="text-sm"> / month</span>
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-400">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <div className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                is_active
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                  : "border-rose-500/30 bg-rose-500/10 text-rose-400"
+              }`}>
+                <div className={`h-1.5 w-1.5 rounded-full ${is_active ? "bg-emerald-400" : "bg-rose-400"}`} />
                 {is_active ? "Active" : "Expired"}
               </div>
             </div>

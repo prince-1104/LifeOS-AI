@@ -409,3 +409,24 @@ export async function createSubscription(
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<CreateSubscriptionResponse>;
 }
+
+export type VerifyOrderResponse = {
+  status: string;
+  plan_activated: boolean;
+  plan_name: string | null;
+  message: string;
+};
+
+export async function verifyOrder(
+  getToken: GetToken,
+  orderId: string
+): Promise<VerifyOrderResponse> {
+  const headers = await jsonAuth(getToken);
+  const res = await fetch(`${getApiBase()}/payments/verify-order`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ order_id: orderId }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<VerifyOrderResponse>;
+}
