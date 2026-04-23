@@ -47,28 +47,30 @@ export function LandingPage() {
       {/* Navbar */}
       <nav className="fixed top-0 inset-x-0 z-50 bg-[#0e0716]/80 backdrop-blur-md border-b border-white/[0.05]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
-          <div className="flex items-center gap-4 sm:gap-10">
-            <span className="flex items-center gap-2 sm:gap-3 text-lg sm:text-xl font-bold tracking-tight text-[#E8D1FF]">
+          <div className="flex items-center gap-2 sm:gap-10">
+            <span className="flex items-center gap-1 sm:gap-3 text-base sm:text-xl font-bold tracking-tight text-[#E8D1FF]">
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-[#0e0716] flex items-center justify-center shrink-0">
                 <Image src="/navbar_logo.png" alt="Cortexa AI" width={52} height={52} className="object-cover scale-[1.3]" />
               </div>
-              Cortexa AI
+              <span className="hidden min-[380px]:block">Cortexa AI</span>
             </span>
             <div className="hidden md:flex items-center gap-8 text-sm font-medium">
               <a href="#" className="text-[#FF9ECA] border-b-2 border-[#FF9ECA] pb-1">Solutions</a>
               <a href="#" className="text-white/60 hover:text-white transition">Technology</a>
-              <a href="/pricing" className="text-white/60 hover:text-white transition">Pricing</a>
             </div>
           </div>
           
           <div className="flex items-center gap-3 sm:gap-6">
+            <a href="/pricing" className="text-[12px] sm:text-sm font-semibold text-white/80 hover:text-white transition">
+              Pricing
+            </a>
             <SignInButton mode="modal">
-              <button className="text-xs sm:text-sm font-semibold text-white/80 hover:text-white transition hidden sm:block">
+              <button className="text-[12px] sm:text-sm font-semibold text-white/80 hover:text-white transition">
                 Sign In
               </button>
             </SignInButton>
             <SignUpButton mode="modal">
-              <button className="rounded-full bg-gradient-to-r from-[#FFB1D8] to-[#FF80B6] px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-bold text-[#3B0E21] shadow-[0_0_15px_rgba(255,128,182,0.3)] transition hover:opacity-90 hover:scale-105 active:scale-95">
+              <button className="rounded-full bg-gradient-to-r from-[#FFB1D8] to-[#FF80B6] px-3 py-1.5 sm:px-5 sm:py-2.5 text-[12px] sm:text-sm font-bold text-[#3B0E21] shadow-[0_0_15px_rgba(255,128,182,0.3)] transition hover:opacity-90 hover:scale-105 active:scale-95">
                 Create Account
               </button>
             </SignUpButton>
@@ -109,8 +111,8 @@ export function LandingPage() {
           </div>
           
           <div className="relative justify-self-center lg:justify-self-end mt-8 lg:mt-0 w-full max-w-[400px]">
-             <div className="group relative w-full aspect-[7/4] rounded-3xl overflow-hidden flex items-center justify-center cursor-pointer shadow-2xl shadow-[0_0_30px_rgba(255,128,182,0.15)] sm:shadow-2xl transition-shadow duration-500 hover:shadow-[0_0_40px_rgba(255,128,182,0.5),0_0_80px_rgba(255,128,182,0.2)]">
-                <Image src="/hero_brand.jpg" alt="Cortexa AI" fill className="object-cover object-center transition-all duration-500 drop-shadow-[0_0_25px_rgba(255,128,182,0.3)] sm:drop-shadow-none sm:group-hover:drop-shadow-[0_0_50px_rgba(255,128,182,0.8)] group-hover:scale-105" priority />
+             <div className="group relative w-full aspect-[7/4] rounded-3xl overflow-hidden flex items-center justify-center cursor-pointer shadow-[0_0_40px_rgba(255,128,182,0.5),0_0_80px_rgba(255,128,182,0.2)] sm:shadow-2xl transition-shadow duration-500 sm:hover:shadow-[0_0_40px_rgba(255,128,182,0.5),0_0_80px_rgba(255,128,182,0.2)]">
+                <Image src="/hero_brand.jpg" alt="Cortexa AI" fill className="object-cover object-center transition-all duration-500 drop-shadow-[0_0_50px_rgba(255,128,182,0.8)] scale-105 sm:drop-shadow-none sm:scale-100 sm:group-hover:drop-shadow-[0_0_50px_rgba(255,128,182,0.8)] sm:group-hover:scale-105" priority />
              </div>
              {/* Glow behind mockup — always visible on mobile, enhanced on hover for desktop */}
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-[#380E53]/40 to-[#FF80B6]/20 blur-[100px] -z-10 rounded-full opacity-100 sm:opacity-60 sm:group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -147,7 +149,7 @@ export function LandingPage() {
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               
               {/* Card 1 */}
-              <div className="group relative overflow-hidden rounded-[28px] bg-[#140A1F] border border-white/[0.04] p-8 lg:col-span-1 h-[320px] shadow-lg transition hover:border-white/[0.1] hover:-translate-y-1">
+              <div className="group relative overflow-hidden rounded-[28px] bg-[#140A1F] border border-[#FF80B6]/40 sm:border-white/[0.04] p-8 lg:col-span-1 h-[320px] shadow-[0_0_30px_rgba(255,128,182,0.2)] sm:shadow-lg transition sm:hover:border-[#FF80B6]/50 sm:hover:shadow-[0_0_40px_rgba(255,128,182,0.4)] sm:hover:-translate-y-1">
                  <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPgo8ZGVmcz4KPHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CjxwYXRoIGQ9Ik0gNDAgMCBMIDAgMCAwIDQwIiBmaWxsPSJub25lIiBzdHJva2U9IiMyQTFCNDUiIHN0cm9rZS13aWR0aD0iMSIvPgo8L3BhdHRlcm4+CjwvZGVmcz4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPgo8L3N2Zz4=')" }}></div>
                  <div className="absolute bottom-0 right-0 top-1/3 left-1/4 bg-gradient-to-t from-[#1A0C27] to-transparent z-10 pointer-events-none"></div>
                  <div className="relative z-20 h-full flex flex-col justify-end">
@@ -162,7 +164,7 @@ export function LandingPage() {
               </div>
 
               {/* Card 2 */}
-              <div className="group relative overflow-hidden rounded-[28px] bg-[#09151A] border border-white/[0.04] p-8 lg:col-span-1 h-[320px] shadow-lg transition hover:border-white/[0.1] hover:-translate-y-1">
+              <div className="group relative overflow-hidden rounded-[28px] bg-[#09151A] border border-[#1DE6DB]/40 sm:border-white/[0.04] p-8 lg:col-span-1 h-[320px] shadow-[0_0_30px_rgba(29,230,219,0.2)] sm:shadow-lg transition sm:hover:border-[#1DE6DB]/50 sm:hover:shadow-[0_0_40px_rgba(29,230,219,0.4)] sm:hover:-translate-y-1">
                  <div className="absolute right-0 top-0 opacity-30 pointer-events-none w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#1DE6DB]/20 via-transparent to-transparent"></div>
                  <div className="relative z-20 h-full flex flex-col justify-end">
                     <div className="mb-auto">
@@ -176,7 +178,7 @@ export function LandingPage() {
               </div>
 
               {/* Card 3 */}
-              <div className="group relative overflow-hidden rounded-[28px] bg-[#140A1F] border border-white/[0.04] p-8 lg:col-span-1 h-[320px] shadow-lg transition hover:border-white/[0.1] hover:-translate-y-1">
+              <div className="group relative overflow-hidden rounded-[28px] bg-[#140A1F] border border-[#FF80B6]/40 sm:border-white/[0.04] p-8 lg:col-span-1 h-[320px] shadow-[0_0_30px_rgba(255,128,182,0.2)] sm:shadow-lg transition sm:hover:border-[#FF80B6]/50 sm:hover:shadow-[0_0_40px_rgba(255,128,182,0.4)] sm:hover:-translate-y-1">
                  <div className="relative z-20 h-full flex flex-col justify-end">
                     <div className="mb-auto inline-flex w-12 h-12 rounded-full bg-[#FF80B6]/10 items-center justify-center">
                        <svg className="w-6 h-6 text-[#FF80B6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -192,7 +194,7 @@ export function LandingPage() {
               </div>
 
               {/* Card 4 (Wide) */}
-              <div className="group relative overflow-hidden rounded-[28px] bg-[#1A0B2E] border border-white/[0.04] p-8 lg:col-span-3 min-h-[280px] shadow-lg transition hover:border-white/[0.1] flex flex-col md:flex-row items-center justify-between gap-12">
+              <div className="group relative overflow-hidden rounded-[28px] bg-[#1A0B2E] border border-[#B254E8]/40 sm:border-white/[0.04] p-8 lg:col-span-3 min-h-[280px] shadow-[0_0_30px_rgba(178,84,232,0.2)] sm:shadow-lg transition sm:hover:border-[#B254E8]/50 sm:hover:shadow-[0_0_40px_rgba(178,84,232,0.4)] flex flex-col md:flex-row items-center justify-between gap-12">
                  <div className="relative z-20 md:w-1/2 pl-2">
                     <h3 className="text-4xl font-bold text-[#E8D1FF] mb-5">Contextual Reminders</h3>
                     <p className="text-white/60 text-[16px] leading-[1.7] max-w-md">
@@ -235,7 +237,7 @@ export function LandingPage() {
               Join over 150,000+ early adopters building a smarter life with Cortexa AI.<br className="hidden md:block" /> No setup required, just your curiosity.
            </p>
            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5 px-4">
-              <a href="https://expo.dev/artifacts/eas/i588AittjLuFRdLSuogXNJ.apk" download className="block w-full sm:w-auto rounded-full bg-[#E8D1FF] px-8 py-4 text-base font-bold text-[#140A1F] shadow-[0_0_20px_rgba(232,209,255,0.2)] transition hover:opacity-90 hover:scale-105 active:scale-95 text-center">
+              <a href="https://expo.dev/artifacts/eas/xmMGHirWuLvWSA5X9bd8S4.apk" download className="block w-full sm:w-auto rounded-full bg-[#E8D1FF] px-8 py-4 text-base font-bold text-[#140A1F] shadow-[0_0_20px_rgba(232,209,255,0.2)] transition hover:opacity-90 hover:scale-105 active:scale-95 text-center">
                  Download our Mobile App
               </a>
               <button className="w-full sm:w-auto rounded-full border border-white/10 bg-[#1A0B2E] hover:bg-[#2A153A] px-8 py-4 text-base font-bold text-[#E8D1FF] transition">

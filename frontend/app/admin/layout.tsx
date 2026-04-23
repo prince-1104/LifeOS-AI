@@ -96,31 +96,45 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col md:flex-row">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#111111] border-r border-white/6 flex flex-col">
+      <aside className="w-full md:w-64 bg-[#111111] border-b md:border-b-0 md:border-r border-white/6 flex flex-col md:h-screen shrink-0 md:sticky md:top-0 z-50">
         {/* Brand */}
-        <div className="h-16 flex items-center gap-3 px-5 border-b border-white/6">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+        <div className="h-16 flex items-center justify-between md:justify-start gap-3 px-5 border-b border-white/6 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+              </svg>
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white">Cortexa AI Admin</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider">Analytics</div>
+            </div>
+          </div>
+          <button
+            id="admin-logout-btn-mobile"
+            onClick={() => {
+              signOut();
+              router.push("/");
+            }}
+            className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
             </svg>
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-white">Cortexa AI Admin</div>
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Analytics</div>
-          </div>
+          </button>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 py-4 px-3 space-y-1">
+        <nav className="flex-1 py-2 md:py-4 px-3 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-visible shrink-0 scrollbar-hide">
           {navItems.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                   active
                     ? "bg-indigo-500/15 text-indigo-400 shadow-sm shadow-indigo-500/10"
                     : "text-slate-400 hover:text-white hover:bg-white/5"
@@ -134,7 +148,7 @@ export default function AdminLayout({
         </nav>
 
         {/* Logout */}
-        <div className="p-3 border-t border-white/6">
+        <div className="hidden md:block p-3 border-t border-white/6 mt-auto">
           <button
             id="admin-logout-btn"
             onClick={() => {
@@ -153,7 +167,7 @@ export default function AdminLayout({
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-6 py-8">{children}</div>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">{children}</div>
       </main>
     </div>
   );
