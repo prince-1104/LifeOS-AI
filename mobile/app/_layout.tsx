@@ -1,8 +1,8 @@
-import { useEffect } from "react";
-import { View, ActivityIndicator, StyleSheet, Text, Image } from "react-native";
+import { useEffect, useState, useRef } from "react";
+import { View, ActivityIndicator, StyleSheet, Text, Image, TouchableOpacity } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ClerkProvider, useAuth } from "@clerk/expo";
+import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { Colors } from "@/constants/Theme";
 
@@ -29,7 +29,7 @@ function AuthGate() {
   return null;
 }
 
-function LoadingScreen() {
+function LoadingScreen({ timedOut, onRetry }: { timedOut: boolean; onRetry: () => void }) {
   return (
     <View style={styles.loading}>
       <Image
@@ -37,21 +37,71 @@ function LoadingScreen() {
         style={styles.loadingLogo}
         resizeMode="contain"
       />
-      <ActivityIndicator size="large" color={Colors.accent} />
-      <Text style={styles.loadingText}>Loading Cortexa AI…</Text>
+      {!timedOut ? (
+        <>
+          <ActivityIndicator size="large" color={Colors.accent} />
+          <Text style={styles.loadingText}>Loading Cortexa AI…</Text>
+        </>
+      ) : (
+        <>
+          <Text style={styles.errorText}>
+            Connection issue. Please check your internet and try again.
+          </Text>
+          <TouchableOpacity style={styles.retryButton} onPress={onRetry} activeOpacity={0.7}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 }
 
 /**
  * Inner layout that waits for Clerk to initialize.
- * Shows a branded splash screen instead of a blank white/grey screen.
+ * Has a timeout safety net — if Clerk doesn't load within 15 seconds,
+ * shows a retry button instead of spinning forever.
  */
 function ClerkGatedLayout() {
   const { isLoaded } = useAuth();
+  const [timedOut, setTimedOut] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // Reset timeout on each retry
+    setTimedOut(false);
+
+    if (!isLoaded) {
+      timerRef.current = setTimeout(() => {
+        setTimedOut(true);
+      }, 15000); // 15 second timeout
+    }
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [isLoaded, retryKey]);
+
+  // Clear timeout when loaded
+  useEffect(() => {
+    if (isLoaded && timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+  }, [isLoaded]);
 
   if (!isLoaded) {
-    return <LoadingScreen />;
+    return (
+      <LoadingScreen
+        timedOut={timedOut}
+        onRetry={() => {
+          // Clear token cache and retry — stale tokens can cause Clerk to hang
+          try {
+            tokenCache.deleteToken("__clerk_client_jwt");
+          } catch {}
+          setRetryKey((k) => k + 1);
+        }}
+      />
+    );
   }
 
   return (
@@ -116,6 +166,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 16,
+    paddingHorizontal: 32,
   },
   loadingLogo: {
     width: 80,
@@ -127,5 +178,23 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: 14,
     marginTop: 8,
+  },
+  errorText: {
+    color: Colors.textSecondary,
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: Colors.accent,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
