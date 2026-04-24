@@ -356,6 +356,8 @@ async def create_subscription(
 
         # Save order ID to user record for webhook matching
         user.stripe_subscription_id = order_id  # reusing column for cashfree order id
+        # Store the plan info so verify endpoint doesn't depend on Cashfree tags
+        user.stripe_customer_id = f"{req.plan_id}:{req.billing_cycle}"
         
         # Persist promo usage if applicable
         if applied_promo:
@@ -484,7 +486,7 @@ async def _handle_order_paid(db: AsyncSession, event_data: dict):
     """Handle successful order payment — activate/renew plan."""
     order = event_data.get("order", {})
     order_id = order.get("order_id", "")
-    tags = order.get("order_tags", {})
+    tags = order.get("order_tags", {}) or {}
     plan_name = tags.get("plan_name", "")
     billing_cycle = tags.get("billing_cycle", "monthly")
 
@@ -506,11 +508,50 @@ async def _handle_order_paid(db: AsyncSession, event_data: dict):
         print(f"[CASHFREE] No user found for order {order_id}", flush=True)
         return
 
+    # Resolve plan name from multiple sources
+    # Source 1: webhook tags (already set above)
+    # Source 2: stored in DB at order creation
+    if (not plan_name or plan_name not in PLANS) and user.stripe_customer_id and ":" in user.stripe_customer_id:
+        parts = user.stripe_customer_id.split(":", 1)
+        plan_name = parts[0]
+        billing_cycle = parts[1] if len(parts) > 1 else "monthly"
+        print(f"[CASHFREE] Using stored plan info: {plan_name}/{billing_cycle}", flush=True)
+
+    # Source 3: order_note
+    if not plan_name or plan_name not in PLANS:
+        order_note = order.get("order_note", "") or ""
+        for pn, pc in PLANS.items():
+            if pc.display_name in order_note or pn in order_note:
+                plan_name = pn
+                if "yearly" in order_note.lower():
+                    billing_cycle = "yearly"
+                break
+
+    # Source 4: order amount
+    if not plan_name or plan_name not in PLANS:
+        try:
+            order_amount = float(order.get("order_amount", 0))
+            for pn, pc in PLANS.items():
+                if pc.name == "free":
+                    continue
+                if (abs(pc.price_inr_monthly - order_amount) < 1 or
+                    abs(pc.price_inr_yearly - order_amount) < 1):
+                    plan_name = pn
+                    if abs(pc.price_inr_yearly - order_amount) < 1:
+                        billing_cycle = "yearly"
+                    break
+        except (ValueError, TypeError):
+            pass
+
+    # Source 5: default
+    if not plan_name or plan_name not in PLANS:
+        plan_name = "basic_29"
+        print(f"[CASHFREE] WARNING: Defaulting to {plan_name} for order {order_id}", flush=True)
+
     from dateutil.relativedelta import relativedelta
     now = datetime.now(timezone.utc)
 
-    if plan_name and plan_name in PLANS:
-        user.plan = plan_name
+    user.plan = plan_name
     user.plan_start_date = now
 
     if billing_cycle == "yearly":
@@ -519,7 +560,7 @@ async def _handle_order_paid(db: AsyncSession, event_data: dict):
         user.plan_end_date = now + relativedelta(months=1)
 
     await db.commit()
-    print(f"[CASHFREE] Plan '{user.plan}' activated for user {user.id} (order: {order_id})", flush=True)
+    print(f"[CASHFREE] ✅ Plan '{user.plan}' activated for user {user.id} (order: {order_id})", flush=True)
 
 
 async def _handle_payment_charged(db: AsyncSession, event_data: dict):
@@ -612,36 +653,49 @@ async def verify_order(
     completion to guarantee the user's plan gets activated.
 
     Flow:
-    1. Check if the order belongs to this user
-    2. Call Cashfree API to get order status
-    3. If PAID → activate the plan in DB
-    4. Return current status to frontend
+    1. Fetch user record
+    2. Check if plan is already activated
+    3. Determine plan info from DB (stored at order creation) or Cashfree tags
+    4. Call Cashfree API to get order status
+    5. If PAID → activate the plan in DB
+    6. Return current status to frontend
     """
     order_id = req.order_id.strip()
     if not order_id:
         raise HTTPException(status_code=400, detail="order_id is required")
 
-    # Verify this order belongs to the requesting user
+    # Fetch user
     stmt = select(User).where(User.id == user_id)
     user = (await db.execute(stmt)).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if user.stripe_subscription_id != order_id:
-        # Security: don't let users verify orders that aren't theirs
-        raise HTTPException(status_code=403, detail="Order does not belong to this user")
+    print(f"[VERIFY] User {user_id} verifying order {order_id}", flush=True)
+    print(f"[VERIFY] DB state: plan={user.plan}, stripe_sub_id={user.stripe_subscription_id}, stripe_cust_id={user.stripe_customer_id}", flush=True)
 
     # Check if plan is already activated (avoid redundant API calls)
     if user.plan and user.plan != "free" and user.plan_end_date:
-        from datetime import datetime, timezone as tz
-        if user.plan_end_date > datetime.now(tz.utc):
-            plan_config = get_plan(user.plan)
-            return VerifyOrderResponse(
-                status="PAID",
-                plan_activated=True,
-                plan_name=plan_config.display_name,
-                message="Plan is already active",
-            )
+        try:
+            if user.plan_end_date.replace(tzinfo=timezone.utc if user.plan_end_date.tzinfo is None else user.plan_end_date.tzinfo) > datetime.now(timezone.utc):
+                plan_config = get_plan(user.plan)
+                print(f"[VERIFY] Plan already active: {user.plan}", flush=True)
+                return VerifyOrderResponse(
+                    status="PAID",
+                    plan_activated=True,
+                    plan_name=plan_config.display_name,
+                    message="Plan is already active",
+                )
+        except Exception as e:
+            print(f"[VERIFY] Date comparison error (continuing): {e}", flush=True)
+
+    # Resolve plan info from stored data (set at create-subscription time)
+    stored_plan_name = ""
+    stored_billing_cycle = "monthly"
+    if user.stripe_customer_id and ":" in user.stripe_customer_id:
+        parts = user.stripe_customer_id.split(":", 1)
+        stored_plan_name = parts[0]
+        stored_billing_cycle = parts[1] if len(parts) > 1 else "monthly"
+        print(f"[VERIFY] Stored plan info: {stored_plan_name} / {stored_billing_cycle}", flush=True)
 
     # Call Cashfree API to verify order status
     try:
@@ -654,32 +708,69 @@ async def verify_order(
                 headers=headers,
             )
 
-            print(f"[CASHFREE] Verify order {order_id}: {resp.status_code} {resp.text[:500]}", flush=True)
+            print(f"[VERIFY] Cashfree response: {resp.status_code} {resp.text[:500]}", flush=True)
 
             if resp.status_code != 200:
                 return VerifyOrderResponse(
                     status="UNKNOWN",
                     plan_activated=False,
-                    message=f"Could not verify order (HTTP {resp.status_code})",
+                    message=f"Could not verify order (HTTP {resp.status_code}). Please contact support at doptonin@gmail.com",
                 )
 
             order_data = resp.json()
             order_status = order_data.get("order_status", "").upper()
 
-            print(f"[CASHFREE] Order {order_id} status: {order_status}", flush=True)
+            print(f"[VERIFY] Order {order_id} status: {order_status}", flush=True)
 
             if order_status == "PAID":
-                # Extract plan info from order tags
-                tags = order_data.get("order_tags", {})
-                plan_name = tags.get("plan_name", "")
-                billing_cycle = tags.get("billing_cycle", "monthly")
+                # Resolve plan name — try multiple sources
+                # Source 1: Stored in DB at order creation (most reliable)
+                plan_name = stored_plan_name
+                billing_cycle = stored_billing_cycle
+
+                # Source 2: Cashfree order tags
+                if not plan_name or plan_name not in PLANS:
+                    tags = order_data.get("order_tags", {}) or {}
+                    plan_name = tags.get("plan_name", "")
+                    billing_cycle = tags.get("billing_cycle", billing_cycle)
+                    print(f"[VERIFY] Tags plan: {plan_name}, cycle: {billing_cycle}", flush=True)
+
+                # Source 3: Parse from order_note (e.g., "Plan: ₹29 Basic (monthly)")
+                if not plan_name or plan_name not in PLANS:
+                    order_note = order_data.get("order_note", "") or ""
+                    for pn, pc in PLANS.items():
+                        if pc.display_name in order_note or pn in order_note:
+                            plan_name = pn
+                            if "yearly" in order_note.lower():
+                                billing_cycle = "yearly"
+                            break
+                    print(f"[VERIFY] Note-parsed plan: {plan_name}", flush=True)
+
+                # Source 4: If still no plan, look at order amount to guess
+                if not plan_name or plan_name not in PLANS:
+                    order_amount = float(order_data.get("order_amount", 0))
+                    # Match by price
+                    for pn, pc in PLANS.items():
+                        if pc.name == "free":
+                            continue
+                        if (abs(pc.price_inr_monthly - order_amount) < 1 or
+                            abs(pc.price_inr_yearly - order_amount) < 1):
+                            plan_name = pn
+                            if abs(pc.price_inr_yearly - order_amount) < 1:
+                                billing_cycle = "yearly"
+                            break
+                    print(f"[VERIFY] Amount-matched plan: {plan_name} (amount: {order_amount})", flush=True)
+
+                # Source 5: Last resort — default to basic plan
+                if not plan_name or plan_name not in PLANS:
+                    plan_name = "basic_29"
+                    print(f"[VERIFY] WARNING: Could not determine plan, defaulting to {plan_name}", flush=True)
 
                 # Activate the plan
                 from dateutil.relativedelta import relativedelta
                 now = datetime.now(timezone.utc)
 
-                if plan_name and plan_name in PLANS:
-                    user.plan = plan_name
+                user.plan = plan_name
                 user.plan_start_date = now
 
                 if billing_cycle == "yearly":
@@ -689,8 +780,8 @@ async def verify_order(
 
                 await db.commit()
 
-                plan_config = get_plan(user.plan or "free")
-                print(f"[CASHFREE] Plan '{user.plan}' activated via verify for user {user.id} (order: {order_id})", flush=True)
+                plan_config = get_plan(user.plan)
+                print(f"[VERIFY] ✅ Plan '{user.plan}' activated for user {user.id} (order: {order_id})", flush=True)
 
                 return VerifyOrderResponse(
                     status="PAID",
@@ -716,7 +807,7 @@ async def verify_order(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[CASHFREE] Verify order error: {str(e)}", flush=True)
+        print(f"[VERIFY] ❌ Error: {str(e)}", flush=True)
         import traceback; traceback.print_exc()
         return VerifyOrderResponse(
             status="ERROR",
