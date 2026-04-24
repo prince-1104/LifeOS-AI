@@ -287,11 +287,11 @@ export default function BillingPage() {
               </div>
             </div>
 
-            <div className="mt-auto pt-8">
+            <div className="mt-auto pt-8 flex items-center gap-3">
               {!isFree ? (
-                 <button className="flex items-center gap-2 rounded-xl bg-indigo-500/20 px-5 py-2.5 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/30">
-                    Manage Subscription <span>→</span>
-                 </button>
+                 <Link href="/pricing" className="flex items-center gap-2 rounded-xl bg-indigo-500/20 px-5 py-2.5 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/30">
+                    Renew Plan <span>→</span>
+                 </Link>
               ) : (
                 <Link href="/pricing" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-5 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.08]">
                    View All Plans <span>→</span>
@@ -300,10 +300,10 @@ export default function BillingPage() {
             </div>
           </div>
 
-          {/* ── Payment Details ────────────────────────────────────── */}
+          {/* ── Plan Validity ──────────────────────────────────────── */}
           <div className="col-span-1 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 lg:col-span-1">
              <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-4">
-              Next Payment
+              Plan Validity
             </h2>
             {isFree ? (
                 <div className="flex h-[100px] items-center justify-center rounded-xl bg-white/[0.02] border border-dashed border-white/[0.05]">
@@ -314,22 +314,25 @@ export default function BillingPage() {
                      <p className="text-xl font-bold text-white">
                         {plan_end_date ? new Date(plan_end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
                      </p>
-                     <p className="mt-1 flex items-center gap-1.5 text-sm text-emerald-400/80">
-                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                         Auto-renew enabled
+                     <p className="mt-1 flex items-center gap-1.5 text-sm text-zinc-400">
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                         Expires on this date
+                     </p>
+                     <p className="mt-3 text-xs text-zinc-500 leading-relaxed">
+                         Your plan is a one-time purchase. It will not auto-renew. You can renew manually before expiry from the pricing page.
                      </p>
 
-                     <div className="mt-8 border-t border-white/[0.06] pt-6">
+                     <div className="mt-6 border-t border-white/[0.06] pt-5">
                           <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-4">
-                            Payment Method
+                            Payment Info
                           </h2>
                           <div className="flex items-center gap-3 rounded-xl bg-[#141414] p-3 border border-white/[0.04]">
-                               <div className="bg-white/10 p-1.5 rounded flex items-center justify-center">
-                                  <svg className="w-5 h-5 text-white/50" viewBox="0 0 24 24" fill="currentColor"><path d="M2.5 7a2.5 2.5 0 0 1 2.5-2.5h14A2.5 2.5 0 0 1 21.5 7v10a2.5 2.5 0 0 1-2.5 2.5H5A2.5 2.5 0 0 1 2.5 17V7zm2.5-1a1.5 1.5 0 0 0-1.5 1.5V9h17V7.5A1.5 1.5 0 0 0 19 6H5zm16 4h-17v5.5A1.5 1.5 0 0 0 5 17h14a1.5 1.5 0 0 0 1.5-1.5V10z"/></svg>
+                               <div className="bg-emerald-500/10 p-1.5 rounded flex items-center justify-center">
+                                  <svg className="w-5 h-5 text-emerald-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                </div>
                                <div>
-                                   <p className="text-sm font-medium text-white">Cashfree Subscription</p>
-                                   <p className="text-xs text-zinc-500">Managed via Gateway</p>
+                                   <p className="text-sm font-medium text-white">One-time Payment</p>
+                                   <p className="text-xs text-zinc-500">No auto-renewal</p>
                                </div>
                           </div>
                      </div>
