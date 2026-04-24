@@ -60,6 +60,19 @@ export type DailyUsage = {
   cost: number;
 };
 
+export type UserUsageCategory = {
+  category: string;
+  total_tokens: number;
+  total_requests: number;
+  cost: number;
+};
+
+export type UserDetailedUsageResponse = {
+  user_id: string;
+  daily_usage: DailyUsage[];
+  category_usage: UserUsageCategory[];
+};
+
 export type WeeklyUsage = {
   week_start: string;
   total_tokens: number;
@@ -136,6 +149,19 @@ export async function getMonthlyUsage(getToken: GetToken, months = 12): Promise<
 export async function getTopUsers(getToken: GetToken, limit = 10): Promise<TopUser[]> {
   const headers = await adminHeaders(getToken);
   const res = await fetch(`${base()}/admin/top-users?limit=${limit}`, {
+    headers,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getUserDetailedUsage(
+  getToken: GetToken,
+  userId: string,
+  days = 30
+): Promise<UserDetailedUsageResponse> {
+  const headers = await adminHeaders(getToken);
+  const res = await fetch(`${base()}/admin/users/${userId}/usage-details?days=${days}`, {
     headers,
   });
   if (!res.ok) throw new Error(await res.text());

@@ -28,6 +28,8 @@ from schemas_admin import (
     WeeklyUsageRow,
     CreatePromoCodeRequest,
     PromoCodeResponse,
+    UserDetailedUsageResponse,
+    UserUsageCategoryRow,
 )
 
 logger = logging.getLogger(__name__)
@@ -302,6 +304,69 @@ async def top_users(
     
     combined.sort(key=lambda x: x.total_tokens, reverse=True)
     return combined[:limit]
+
+
+@router.get("/users/{user_id}/usage-details", response_model=UserDetailedUsageResponse)
+async def user_detailed_usage(
+    user_id: str,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    _token: str = Depends(get_admin_session),
+):
+    """Detailed token usage for a specific user."""
+    settings = get_settings()
+
+    # Daily usage for this user
+    daily_stmt = text("""
+        SELECT
+            DATE(created_at) AS day,
+            COALESCE(SUM(total_tokens), 0) AS tokens,
+            COUNT(*) AS requests
+        FROM usage_logs
+        WHERE user_id = :user_id AND created_at >= CURRENT_DATE - make_interval(days => :days)
+        GROUP BY DATE(created_at)
+        ORDER BY day DESC
+    """)
+    daily_rows = (await db.execute(daily_stmt, {"user_id": user_id, "days": days})).all()
+
+    daily_usage = [
+        DailyUsageRow(
+            date=str(r.day),
+            total_tokens=int(r.tokens),
+            total_requests=int(r.requests),
+            cost=round((int(r.tokens) / 1000) * settings.MODEL_COST_PER_1K, 4),
+        )
+        for r in daily_rows
+    ]
+
+    # Category usage for this user (group by endpoint)
+    category_stmt = text("""
+        SELECT
+            COALESCE(endpoint, model, 'Unknown') AS category,
+            COALESCE(SUM(total_tokens), 0) AS tokens,
+            COUNT(*) AS requests
+        FROM usage_logs
+        WHERE user_id = :user_id
+        GROUP BY COALESCE(endpoint, model, 'Unknown')
+        ORDER BY tokens DESC
+    """)
+    category_rows = (await db.execute(category_stmt, {"user_id": user_id})).all()
+
+    category_usage = [
+        UserUsageCategoryRow(
+            category=str(r.category),
+            total_tokens=int(r.tokens),
+            total_requests=int(r.requests),
+            cost=round((int(r.tokens) / 1000) * settings.MODEL_COST_PER_1K, 4),
+        )
+        for r in category_rows
+    ]
+
+    return UserDetailedUsageResponse(
+        user_id=user_id,
+        daily_usage=daily_usage,
+        category_usage=category_usage,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════

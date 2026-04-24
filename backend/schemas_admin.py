@@ -120,6 +120,18 @@ class UserRevenueRow(BaseModel):
     plan_display_name: str
     plan_price_inr: int
     total_cost_inr: float
-    profit_loss_inr: float
     is_over_budget: bool
+
+
+class UserUsageCategoryRow(BaseModel):
+    category: str
+    total_tokens: int
+    total_requests: int
+    cost: float
+
+
+class UserDetailedUsageResponse(BaseModel):
+    user_id: str
+    daily_usage: list[DailyUsageRow]
+    category_usage: list[UserUsageCategoryRow]
 

@@ -22,7 +22,8 @@ export default function AdminUsersPage() {
       try {
         const getToken = async () => await session.getToken();
         const data = await getAllUsers(getToken);
-        setUsers(data);
+        const sortedData = [...data].sort((a, b) => b.total_tokens - a.total_tokens);
+        setUsers(sortedData);
       } catch (err: any) {
         if (err.message?.includes("401") || err.message?.includes("admin")) {
           router.replace("/");
