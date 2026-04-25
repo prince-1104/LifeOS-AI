@@ -9,13 +9,19 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  ScrollView,
 } from "react-native";
-import { useSignUp } from "@clerk/expo";
+import { useSignUp, useSSO } from "@clerk/expo";
 import { useRouter, Link } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
+import * as WebBrowser from "expo-web-browser";
+
+// Required for OAuth redirects in Expo
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignUpScreen() {
   const { signUp, setActive, isLoaded } = useSignUp();
+  const { startSSOFlow } = useSSO();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -24,16 +30,66 @@ export default function SignUpScreen() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
+  // ── Google SSO Sign Up ──────────────────────────────────────────────
+  const handleGoogleSignUp = useCallback(async () => {
+    console.log("GOOGLE SIGN UP PRESSED");
+    setError("");
+    setGoogleLoading(true);
+
+    try {
+      const { createdSessionId, setActive: ssoSetActive } = await startSSOFlow({
+        strategy: "oauth_google",
+      });
+
+      console.log("SSO flow completed. Session:", createdSessionId);
+
+      if (createdSessionId) {
+        const activator = ssoSetActive || setActive;
+        await activator({ session: createdSessionId });
+        console.log("Google session activated. Navigating...");
+        router.replace("/(tabs)/chat");
+      } else {
+        console.log("No session created from Google sign-up.");
+        setError("Sign up incomplete. Please try email/password or try again.");
+      }
+    } catch (err: any) {
+      console.log("GOOGLE SSO ERROR:", err);
+
+      const msg = err?.message || "";
+      if (msg.includes("cancel") || msg.includes("dismiss")) {
+        console.log("User cancelled Google sign-up");
+      } else {
+        setError(
+          err?.errors?.[0]?.longMessage ||
+            err?.message ||
+            "Google sign-up failed. Please try again."
+        );
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [startSSOFlow, setActive, router]);
+
+  // ── Email / Password Sign Up ────────────────────────────────────────
   const handleSignUp = useCallback(async () => {
-    if (!isLoaded) return;
+    console.log("EMAIL SIGN UP PRESSED");
+    if (!isLoaded) {
+      console.log("SIGNUP GUARD: Clerk not loaded yet.");
+      return;
+    }
+
     setError("");
     setLoading(true);
+
     try {
       await signUp.create({ emailAddress: email, password });
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       setPendingVerification(true);
+      console.log("Verification email sent.");
     } catch (err: any) {
+      console.log("SIGNUP ERROR:", err);
       setError(
         err?.errors?.[0]?.longMessage ||
           err?.message ||
@@ -42,19 +98,27 @@ export default function SignUpScreen() {
     } finally {
       setLoading(false);
     }
-  }, [isLoaded, email, password]);
+  }, [isLoaded, email, password, signUp]);
 
+  // ── Email Verification ──────────────────────────────────────────────
   const handleVerify = useCallback(async () => {
+    console.log("VERIFY CODE PRESSED");
     if (!isLoaded) return;
+
     setError("");
     setLoading(true);
+
     try {
       const result = await signUp.attemptEmailAddressVerification({ code });
+      console.log("Verification result:", result.status);
+
       if (result.status === "complete" && result.createdSessionId) {
         await setActive({ session: result.createdSessionId });
+        console.log("Signup verified. Navigating...");
         router.replace("/(tabs)/chat");
       }
     } catch (err: any) {
+      console.log("VERIFY ERROR:", err);
       setError(
         err?.errors?.[0]?.longMessage ||
           err?.message ||
@@ -63,31 +127,37 @@ export default function SignUpScreen() {
     } finally {
       setLoading(false);
     }
-  }, [isLoaded, code]);
+  }, [isLoaded, code, signUp, setActive, router]);
+
+  const isAnyLoading = loading || googleLoading;
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={styles.inner}>
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('@/assets/images/hero_brand.jpg')}
-            style={styles.heroImage}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>
-            {pendingVerification
-              ? "Check your email for a verification code"
-              : "Start tracking your life with AI"}
-          </Text>
-        </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.inner}>
+          <View style={styles.logoContainer}>
+            <Image
+              source={require("@/assets/images/hero_brand.jpg")}
+              style={styles.heroImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>
+              {pendingVerification
+                ? "Check your email for a verification code"
+                : "Start tracking your life with AI"}
+            </Text>
+          </View>
 
-        <View style={styles.form}>
           {pendingVerification ? (
-            <>
+            // ── Verification Step ───────────────────────────────────
+            <View style={styles.form}>
               <TextInput
                 style={styles.input}
                 placeholder="Verification Code"
@@ -109,52 +179,87 @@ export default function SignUpScreen() {
                   <Text style={styles.buttonText}>Verify Email</Text>
                 )}
               </TouchableOpacity>
-            </>
+            </View>
           ) : (
+            // ── Sign Up Step ────────────────────────────────────────
             <>
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor={Colors.textMuted}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                value={email}
-                onChangeText={setEmail}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor={Colors.textMuted}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {/* Google SSO Button */}
               <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleSignUp}
-                disabled={loading}
+                style={styles.googleButton}
+                onPress={handleGoogleSignUp}
+                disabled={isAnyLoading}
                 activeOpacity={0.8}
               >
-                {loading ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                {googleLoading ? (
+                  <ActivityIndicator color={Colors.textPrimary} size="small" />
                 ) : (
-                  <Text style={styles.buttonText}>Sign Up</Text>
+                  <View style={styles.googleButtonInner}>
+                    <Text style={styles.googleIcon}>G</Text>
+                    <Text style={styles.googleButtonText}>
+                      Continue with Google
+                    </Text>
+                  </View>
                 )}
               </TouchableOpacity>
+
+              {/* Divider */}
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              {/* Email / Password Form */}
+              <View style={styles.form}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor={Colors.textMuted}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={!isAnyLoading}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  placeholderTextColor={Colors.textMuted}
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                  editable={!isAnyLoading}
+                />
+                {error ? <Text style={styles.error}>{error}</Text> : null}
+                <TouchableOpacity
+                  style={[
+                    styles.button,
+                    isAnyLoading && styles.buttonDisabled,
+                  ]}
+                  onPress={handleSignUp}
+                  disabled={isAnyLoading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.buttonText}>Sign Up</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </>
           )}
-        </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
-          <Link href="/(auth)/sign-in" asChild>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>Sign In</Text>
-            </TouchableOpacity>
-          </Link>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Already have an account? </Text>
+            <Link href="/(auth)/sign-in" asChild>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>Sign In</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -164,6 +269,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.bgDeep,
   },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
   inner: {
     flex: 1,
     justifyContent: "center",
@@ -171,7 +280,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 32,
   },
   heroImage: {
     width: 200,
@@ -191,6 +300,48 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     textAlign: "center",
   },
+  // Google SSO
+  googleButton: {
+    backgroundColor: Colors.bgElevated,
+    borderWidth: 1,
+    borderColor: Colors.glassBorder,
+    borderRadius: Radius.lg,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  googleButtonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#4285F4",
+  },
+  googleButtonText: {
+    color: Colors.textPrimary,
+    fontSize: FontSize.md,
+    fontWeight: "600",
+  },
+  // Divider
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.glassBorder,
+  },
+  dividerText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    marginHorizontal: Spacing.md,
+  },
+  // Form
   form: {
     gap: Spacing.md,
   },

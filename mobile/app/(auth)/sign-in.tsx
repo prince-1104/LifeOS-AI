@@ -9,30 +9,80 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  ScrollView,
 } from "react-native";
-import { useSignIn } from "@clerk/expo";
+import { useSignIn, useSSO } from "@clerk/expo";
 import { useRouter, Link } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
+import * as WebBrowser from "expo-web-browser";
+
+// Required for OAuth redirects in Expo
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
+  const { startSSOFlow } = useSSO();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
+  // ── Google SSO Sign In ──────────────────────────────────────────────
+  const handleGoogleSignIn = useCallback(async () => {
+    console.log("GOOGLE SIGN IN PRESSED");
+    setError("");
+    setGoogleLoading(true);
+
+    try {
+      const { createdSessionId, setActive: ssoSetActive, signIn: ssoSignIn, signUp: ssoSignUp } = await startSSOFlow({
+        strategy: "oauth_google",
+      });
+
+      console.log("SSO flow completed. Session:", createdSessionId);
+
+      if (createdSessionId) {
+        // User already exists → set active session
+        const activator = ssoSetActive || setActive;
+        await activator({ session: createdSessionId });
+        console.log("Google session activated. Navigating...");
+        router.replace("/(tabs)/chat");
+      } else {
+        // User needs to complete sign-up (first-time Google user)
+        // The SSO flow should handle this automatically via signUp
+        console.log("No session created — may need additional verification.");
+        setError("Sign in incomplete. Please try email/password or try again.");
+      }
+    } catch (err: any) {
+      console.log("GOOGLE SSO ERROR:", err);
+      console.log("Error details:", JSON.stringify(err, null, 2));
+
+      // Don't show error if user simply cancelled the browser
+      const msg = err?.message || "";
+      if (msg.includes("cancel") || msg.includes("dismiss")) {
+        console.log("User cancelled Google sign-in");
+      } else {
+        setError(
+          err?.errors?.[0]?.longMessage ||
+            err?.message ||
+            "Google sign-in failed. Please try again."
+        );
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [startSSOFlow, setActive, router]);
+
+  // ── Email / Password Sign In ────────────────────────────────────────
   const handleSignIn = useCallback(async () => {
-    console.log("SIGN IN BUTTON PRESSED");
-    console.log("Current state:", { email, passwordLength: password.length, isLoaded });
-
+    console.log("EMAIL SIGN IN PRESSED");
     if (!isLoaded) {
-      console.log("LOGIN GUARD: Clerk is not fully loaded yet.");
+      console.log("LOGIN GUARD: Clerk not loaded yet.");
       return;
     }
 
-    console.log("Starting API call to Clerk...");
     setError("");
     setLoading(true);
 
@@ -42,20 +92,18 @@ export default function SignInScreen() {
         password,
       });
 
-      console.log("Clerk API response success:", result.status);
+      console.log("Clerk response:", result.status);
 
       if (result.status === "complete" && result.createdSessionId) {
-        console.log("Session created successfully. Setting active session...");
         await setActive({ session: result.createdSessionId });
-        console.log("Active session set. Redirecting to chat...");
+        console.log("Email session activated. Navigating...");
         router.replace("/(tabs)/chat");
       } else {
         console.log("Login incomplete. Status:", result.status);
+        setError("Sign-in incomplete. Please verify your email.");
       }
     } catch (err: any) {
       console.log("LOGIN ERROR:", err);
-      console.log("Error details:", JSON.stringify(err, null, 2));
-      
       setError(
         err?.errors?.[0]?.longMessage ||
           err?.message ||
@@ -66,68 +114,101 @@ export default function SignInScreen() {
     }
   }, [isLoaded, email, password, signIn, setActive, router]);
 
+  const isAnyLoading = loading || googleLoading;
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={styles.inner}>
-        {/* Logo */}
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('@/assets/images/hero_brand.jpg')}
-            style={styles.heroImage}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Cortexa AI</Text>
-          <Text style={styles.subtitle}>Your day, understood.</Text>
-        </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.inner}>
+          {/* Logo */}
+          <View style={styles.logoContainer}>
+            <Image
+              source={require("@/assets/images/hero_brand.jpg")}
+              style={styles.heroImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>Cortexa AI</Text>
+            <Text style={styles.subtitle}>Your day, understood.</Text>
+          </View>
 
-        {/* Form */}
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={Colors.textMuted}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor={Colors.textMuted}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
+          {/* Google SSO Button */}
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleSignIn}
-            disabled={loading}
+            style={styles.googleButton}
+            onPress={handleGoogleSignIn}
+            disabled={isAnyLoading}
             activeOpacity={0.8}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
+            {googleLoading ? (
+              <ActivityIndicator color={Colors.textPrimary} size="small" />
             ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
+              <View style={styles.googleButtonInner}>
+                <Text style={styles.googleIcon}>G</Text>
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              </View>
             )}
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <Link href="/(auth)/sign-up" asChild>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>Sign Up</Text>
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Email / Password Form */}
+          <View style={styles.form}>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+              editable={!isAnyLoading}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor={Colors.textMuted}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              editable={!isAnyLoading}
+            />
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={[styles.button, isAnyLoading && styles.buttonDisabled]}
+              onPress={handleSignIn}
+              disabled={isAnyLoading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In</Text>
+              )}
             </TouchableOpacity>
-          </Link>
+          </View>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Link href="/(auth)/sign-up" asChild>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -137,6 +218,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.bgDeep,
   },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
   inner: {
     flex: 1,
     justifyContent: "center",
@@ -144,7 +229,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 32,
   },
   heroImage: {
     width: 200,
@@ -163,6 +248,48 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: Spacing.xs,
   },
+  // Google SSO
+  googleButton: {
+    backgroundColor: Colors.bgElevated,
+    borderWidth: 1,
+    borderColor: Colors.glassBorder,
+    borderRadius: Radius.lg,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  googleButtonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#4285F4",
+  },
+  googleButtonText: {
+    color: Colors.textPrimary,
+    fontSize: FontSize.md,
+    fontWeight: "600",
+  },
+  // Divider
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.glassBorder,
+  },
+  dividerText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    marginHorizontal: Spacing.md,
+  },
+  // Form
   form: {
     gap: Spacing.md,
   },
