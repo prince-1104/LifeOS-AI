@@ -8,26 +8,47 @@ import { Colors } from "@/constants/Theme";
 
 // ── Clerk token cache using expo-secure-store ───────────────────────────
 // Manual implementation for guaranteed compatibility.
-const tokenCache = {
-  async getToken(key: string): Promise<string | null> {
+// Bulletproof wrapper for SecureStore to prevent Keystore hangs
+const safeSecureStore = {
+  async getItem(key: string): Promise<string | null> {
     try {
       const item = await Promise.race([
         SecureStore.getItemAsync(key),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("SecureStore timeout")), 2000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 1500))
       ]);
       return item as string | null;
     } catch {
-      try { await SecureStore.deleteItemAsync(key); } catch {}
       return null;
     }
   },
-  async saveToken(key: string, value: string): Promise<void> {
+  async setItem(key: string, value: string): Promise<void> {
     try {
       await Promise.race([
         SecureStore.setItemAsync(key, value),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("SecureStore timeout")), 2000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 1500))
       ]);
     } catch {}
+  },
+  async deleteItem(key: string): Promise<void> {
+    try {
+      await Promise.race([
+        SecureStore.deleteItemAsync(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 1500))
+      ]);
+    } catch {}
+  }
+};
+
+const tokenCache = {
+  async getToken(key: string): Promise<string | null> {
+    const item = await safeSecureStore.getItem(key);
+    if (!item) {
+      await safeSecureStore.deleteItem(key);
+    }
+    return item;
+  },
+  async saveToken(key: string, value: string): Promise<void> {
+    await safeSecureStore.setItem(key, value);
   },
 };
 
@@ -40,12 +61,7 @@ async function clearClerkTokens() {
     "__clerk_publishable_key",
   ];
   for (const key of keysToDelete) {
-    try { 
-      await Promise.race([
-        SecureStore.deleteItemAsync(key),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1000))
-      ]);
-    } catch {}
+    await safeSecureStore.deleteItem(key);
   }
 }
 
