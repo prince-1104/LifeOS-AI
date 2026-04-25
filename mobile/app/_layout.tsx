@@ -39,7 +39,7 @@ async function clearClerkTokens() {
 
 // 🔑 Clerk publishable key (production — same Clerk app as the web frontend)
 const CLERK_PUBLISHABLE_KEY =
-  "pk_live_Y2xlcmsuZG9wdG9uaW4ub25saW5lJA";
+  "pk_live_Y2xlcmsuZG9wdG9uaW4ub25saW5lJA==";
 
 function AuthGate() {
   const { isSignedIn, isLoaded } = useAuth();
