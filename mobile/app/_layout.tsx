@@ -1,10 +1,41 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { View, ActivityIndicator, StyleSheet, Text, Image, TouchableOpacity } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
-import { tokenCache } from "@clerk/expo/token-cache";
+import { ClerkProvider, useAuth } from "@clerk/expo";
+import * as SecureStore from "expo-secure-store";
 import { Colors } from "@/constants/Theme";
+
+// ── Clerk token cache using expo-secure-store ───────────────────────────
+// Manual implementation for guaranteed compatibility.
+const tokenCache = {
+  async getToken(key: string): Promise<string | null> {
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch {
+      try { await SecureStore.deleteItemAsync(key); } catch {}
+      return null;
+    }
+  },
+  async saveToken(key: string, value: string): Promise<void> {
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch {}
+  },
+};
+
+// Helper to clear all Clerk-related tokens from SecureStore
+async function clearClerkTokens() {
+  const keysToDelete = [
+    "__clerk_client_jwt",
+    "__clerk_client_uat",
+    "__clerk_session_id",
+    "__clerk_publishable_key",
+  ];
+  for (const key of keysToDelete) {
+    try { await SecureStore.deleteItemAsync(key); } catch {}
+  }
+}
 
 // 🔑 Clerk publishable key (production — same Clerk app as the web frontend)
 const CLERK_PUBLISHABLE_KEY =
@@ -29,78 +60,74 @@ function AuthGate() {
   return null;
 }
 
-function LoadingScreen({ timedOut, onRetry }: { timedOut: boolean; onRetry: () => void }) {
-  return (
-    <View style={styles.loading}>
-      <Image
-        source={require("@/assets/images/icon.png")}
-        style={styles.loadingLogo}
-        resizeMode="contain"
-      />
-      {!timedOut ? (
-        <>
-          <ActivityIndicator size="large" color={Colors.accent} />
-          <Text style={styles.loadingText}>Loading Cortexa AI…</Text>
-        </>
-      ) : (
-        <>
-          <Text style={styles.errorText}>
-            Connection issue. Please check your internet and try again.
-          </Text>
-          <TouchableOpacity style={styles.retryButton} onPress={onRetry} activeOpacity={0.7}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </View>
-  );
-}
-
 /**
  * Inner layout that waits for Clerk to initialize.
- * Has a timeout safety net — if Clerk doesn't load within 15 seconds,
- * shows a retry button instead of spinning forever.
+ * Has a 12-second timeout — if Clerk doesn't load, it clears
+ * potentially stale tokens and offers a retry button.
  */
 function ClerkGatedLayout() {
   const { isLoaded } = useAuth();
   const [timedOut, setTimedOut] = useState(false);
-  const [retryKey, setRetryKey] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Reset timeout on each retry
-    setTimedOut(false);
-
-    if (!isLoaded) {
-      timerRef.current = setTimeout(() => {
-        setTimedOut(true);
-      }, 15000); // 15 second timeout
+    if (isLoaded) {
+      // Clerk loaded successfully — clear any pending timer
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      setTimedOut(false);
+      return;
     }
+
+    // Not loaded yet — start timeout
+    setTimedOut(false);
+    timerRef.current = setTimeout(() => {
+      setTimedOut(true);
+    }, 12000);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [isLoaded, retryKey]);
+  }, [isLoaded, retryCount]);
 
-  // Clear timeout when loaded
-  useEffect(() => {
-    if (isLoaded && timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-  }, [isLoaded]);
+  const handleRetry = useCallback(async () => {
+    // Clear stale tokens that may be causing Clerk to hang
+    await clearClerkTokens();
+    setTimedOut(false);
+    setRetryCount((c) => c + 1);
+  }, []);
 
   if (!isLoaded) {
     return (
-      <LoadingScreen
-        timedOut={timedOut}
-        onRetry={() => {
-          // Clear token cache and retry — stale tokens can cause Clerk to hang
-          try {
-            tokenCache.deleteToken("__clerk_client_jwt");
-          } catch {}
-          setRetryKey((k) => k + 1);
-        }}
-      />
+      <View style={styles.loading}>
+        <Image
+          source={require("@/assets/images/icon.png")}
+          style={styles.loadingLogo}
+          resizeMode="contain"
+        />
+        {!timedOut ? (
+          <>
+            <ActivityIndicator size="large" color={Colors.accent} />
+            <Text style={styles.loadingText}>Loading Cortexa AI…</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.errorText}>
+              Connection issue. Please check your internet and try again.
+            </Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={handleRetry}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
     );
   }
 
