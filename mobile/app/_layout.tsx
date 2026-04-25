@@ -11,7 +11,11 @@ import { Colors } from "@/constants/Theme";
 const tokenCache = {
   async getToken(key: string): Promise<string | null> {
     try {
-      return await SecureStore.getItemAsync(key);
+      const item = await Promise.race([
+        SecureStore.getItemAsync(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("SecureStore timeout")), 2000))
+      ]);
+      return item as string | null;
     } catch {
       try { await SecureStore.deleteItemAsync(key); } catch {}
       return null;
@@ -19,7 +23,10 @@ const tokenCache = {
   },
   async saveToken(key: string, value: string): Promise<void> {
     try {
-      await SecureStore.setItemAsync(key, value);
+      await Promise.race([
+        SecureStore.setItemAsync(key, value),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("SecureStore timeout")), 2000))
+      ]);
     } catch {}
   },
 };
@@ -33,7 +40,12 @@ async function clearClerkTokens() {
     "__clerk_publishable_key",
   ];
   for (const key of keysToDelete) {
-    try { await SecureStore.deleteItemAsync(key); } catch {}
+    try { 
+      await Promise.race([
+        SecureStore.deleteItemAsync(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1000))
+      ]);
+    } catch {}
   }
 }
 
