@@ -24,19 +24,38 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleSignIn = useCallback(async () => {
-    if (!isLoaded) return;
+    console.log("SIGN IN BUTTON PRESSED");
+    console.log("Current state:", { email, passwordLength: password.length, isLoaded });
+
+    if (!isLoaded) {
+      console.log("LOGIN GUARD: Clerk is not fully loaded yet.");
+      return;
+    }
+
+    console.log("Starting API call to Clerk...");
     setError("");
     setLoading(true);
+
     try {
       const result = await signIn.create({
         identifier: email,
         password,
       });
+
+      console.log("Clerk API response success:", result.status);
+
       if (result.status === "complete" && result.createdSessionId) {
+        console.log("Session created successfully. Setting active session...");
         await setActive({ session: result.createdSessionId });
+        console.log("Active session set. Redirecting to chat...");
         router.replace("/(tabs)/chat");
+      } else {
+        console.log("Login incomplete. Status:", result.status);
       }
     } catch (err: any) {
+      console.log("LOGIN ERROR:", err);
+      console.log("Error details:", JSON.stringify(err, null, 2));
+      
       setError(
         err?.errors?.[0]?.longMessage ||
           err?.message ||
@@ -45,7 +64,7 @@ export default function SignInScreen() {
     } finally {
       setLoading(false);
     }
-  }, [isLoaded, email, password]);
+  }, [isLoaded, email, password, signIn, setActive, router]);
 
   return (
     <KeyboardAvoidingView
