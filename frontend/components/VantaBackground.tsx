@@ -18,6 +18,7 @@ interface Brain {
   angle: number;
   rotationSpeed: number;
   rotation: number;
+  isViolet: boolean;
 }
 
 export function VantaBackground() {
@@ -48,7 +49,7 @@ export function VantaBackground() {
     setSize();
 
     // ── Create brains ────────────────────────────────────────────────
-    const BRAIN_COUNT = 35;
+    const BRAIN_COUNT = 80;
     const MOUSE_RADIUS = 120;
     const brains: Brain[] = [];
 
@@ -60,12 +61,13 @@ export function VantaBackground() {
         y,
         baseX: x,
         baseY: y,
-        size: 12 + Math.random() * 14,
-        opacity: 0.06 + Math.random() * 0.12,
+        size: 16 + Math.random() * 20,
+        opacity: 0.15 + Math.random() * 0.35,
         speed: 0.15 + Math.random() * 0.3,
         angle: Math.random() * Math.PI * 2,
         rotationSpeed: (Math.random() - 0.5) * 0.01,
         rotation: Math.random() * Math.PI * 2,
+        isViolet: Math.random() > 0.5,
       });
     }
 
@@ -130,6 +132,9 @@ export function VantaBackground() {
         ctx.translate(b.x, b.y);
         ctx.rotate(b.rotation);
         ctx.globalAlpha = b.opacity;
+        if (b.isViolet) {
+          ctx.filter = "hue-rotate(240deg) saturate(1.5)"; // Turns pink into vibrant violet
+        }
         ctx.font = `${b.size}px serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
