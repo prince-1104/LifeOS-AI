@@ -11,6 +11,7 @@ import {
   StarIcon 
 } from "@heroicons/react/24/solid";
 import { CpuChipIcon } from "@heroicons/react/24/outline";
+import { ParticleBackground } from "./ParticleBackground";
 
 export function LandingPage() {
   const { isSignedIn, isLoaded, user } = useUser();
@@ -43,9 +44,13 @@ export function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0e0716] text-white selection:bg-[#FF9ECA] selection:text-[#0e0716] font-sans pb-0">
+    <div className="relative min-h-screen bg-[#0e0716] text-white selection:bg-[#FF9ECA] selection:text-[#0e0716] font-sans pb-0">
+      {/* 3D Particle Background */}
+      <div className="fixed inset-0 z-0">
+        <ParticleBackground />
+      </div>
       {/* Navbar */}
-      <nav className="fixed top-0 inset-x-0 z-50 bg-[#0e0716]/80 backdrop-blur-md border-b border-white/[0.05]">
+      <nav className="fixed top-0 inset-x-0 z-50 bg-[#0e0716]/60 backdrop-blur-xl border-b border-white/[0.05]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-10">
             <span className="flex items-center gap-1 sm:gap-3 text-base sm:text-xl font-bold tracking-tight text-[#E8D1FF]">
@@ -79,7 +84,7 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <main className="pt-28 sm:pt-40 pb-20 px-4 sm:px-6 max-w-7xl mx-auto">
+      <main className="relative z-10 pt-28 sm:pt-40 pb-20 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-8 sm:gap-12 items-center">
           <div className="max-w-xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#084D73] bg-[#0A2640]/50 px-3 py-1 mb-6 sm:mb-8">
@@ -248,7 +253,7 @@ export function LandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#050208] px-6 py-12 mt-10">
+      <footer className="relative z-10 bg-[#050208]/80 backdrop-blur-md px-6 py-12 mt-10">
          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8 text-center md:text-left">
             <div>
                <span className="flex items-center justify-center md:justify-start gap-2 text-base font-bold tracking-tight text-[#E8D1FF] mb-3 uppercase">
