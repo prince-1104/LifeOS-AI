@@ -188,7 +188,7 @@ export function ChatBox() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative z-10 flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollAreaRef}
         className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8"
@@ -256,7 +256,7 @@ export function ChatBox() {
         </div>
       </div>
 
-      <div className="border-t border-white/[0.06] bg-[#0a0a0a]/95 px-4 py-4 backdrop-blur-md md:px-8">
+      <div className="border-t border-white/[0.06] bg-[#0a0a0a]/70 px-4 py-4 backdrop-blur-xl md:px-8">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
           <div className="flex items-end gap-2">
           <div className="relative flex-1">
