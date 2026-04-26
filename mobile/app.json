@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "Cortexa AI",
-    "slug": "cortexa",
-    "owner": "doptonin",
+    "slug": "cortexa-AI",
+    "owner": "noob.er",
     "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -43,7 +43,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "7491a6b8-9366-4610-8897-631ac75669a2"
+        "projectId": "804dc8bc-d797-42a7-852f-f8f98e41a6e4"
       }
     }
   }
