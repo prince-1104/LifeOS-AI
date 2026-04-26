@@ -1,178 +1,65 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * Floating Brain Background — tiny 🧠 icons drift across the chat,
- * gently pushed away when the mouse hovers near them.
+ * 3D Waves Background — A smooth, premium 3D liquid wave effect 
+ * that slowly flows in the background, rendering behind the chat.
  */
-
-interface Brain {
-  x: number;
-  y: number;
-  baseX: number;
-  baseY: number;
-  size: number;
-  opacity: number;
-  speed: number;
-  angle: number;
-  rotationSpeed: number;
-  rotation: number;
-  isViolet: boolean;
-}
-
 export function VantaBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  const vantaRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [vantaEffect, setVantaEffect] = useState<any>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    let cancelled = false;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    async function init() {
+      // Dynamic imports to avoid SSR issues with Three.js
+      const THREE = await import("three");
+      const WAVES = (await import("vanta/dist/vanta.waves.min")).default;
 
-    const parent = canvas.parentElement!;
-    let w = parent.clientWidth;
-    let h = parent.clientHeight;
-    const dpr = Math.min(window.devicePixelRatio, 2);
+      if (cancelled || !vantaRef.current) return;
 
-    const setSize = () => {
-      w = parent.clientWidth;
-      h = parent.clientHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    setSize();
-
-    // ── Create brains ────────────────────────────────────────────────
-    const BRAIN_COUNT = 80;
-    const MOUSE_RADIUS = 120;
-    const brains: Brain[] = [];
-
-    for (let i = 0; i < BRAIN_COUNT; i++) {
-      const x = Math.random() * w;
-      const y = Math.random() * h;
-      brains.push({
-        x,
-        y,
-        baseX: x,
-        baseY: y,
-        size: 16 + Math.random() * 20,
-        opacity: 0.15 + Math.random() * 0.35,
-        speed: 0.15 + Math.random() * 0.3,
-        angle: Math.random() * Math.PI * 2,
-        rotationSpeed: (Math.random() - 0.5) * 0.01,
-        rotation: Math.random() * Math.PI * 2,
-        isViolet: Math.random() > 0.5,
+      const effect = WAVES({
+        el: vantaRef.current,
+        THREE,
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.0,
+        minWidth: 200.0,
+        scale: 1.0,
+        scaleMobile: 1.0,
+        color: 0x140a23,       // Deep purple/indigo for the liquid waves
+        shininess: 40,         // Slightly shiny to catch the light
+        waveHeight: 15.0,      // Subtle, rolling waves
+        waveSpeed: 0.6,        // Very slow, calming motion
+        zoom: 0.8,             // Pulled back slightly so waves look grand
       });
+      if (!cancelled) setVantaEffect(effect);
     }
 
-    // ── Mouse tracking ───────────────────────────────────────────────
-    const mouse = { x: -9999, y: -9999 };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = e.clientX - rect.left;
-      mouse.y = e.clientY - rect.top;
-    };
-    const handleMouseLeave = () => {
-      mouse.x = -9999;
-      mouse.y = -9999;
-    };
-
-    parent.addEventListener("mousemove", handleMouseMove);
-    parent.addEventListener("mouseleave", handleMouseLeave);
-
-    // ── Animation loop ───────────────────────────────────────────────
-    let animId: number;
-
-    const animate = () => {
-      animId = requestAnimationFrame(animate);
-      ctx.clearRect(0, 0, w, h);
-
-      for (const b of brains) {
-        // Gentle floating drift
-        b.angle += b.speed * 0.008;
-        b.baseX += Math.sin(b.angle) * 0.3;
-        b.baseY += Math.cos(b.angle * 0.7) * 0.2;
-
-        // Wrap around edges
-        if (b.baseX < -30) b.baseX = w + 30;
-        if (b.baseX > w + 30) b.baseX = -30;
-        if (b.baseY < -30) b.baseY = h + 30;
-        if (b.baseY > h + 30) b.baseY = -30;
-
-        // Mouse repulsion — push brains away on hover
-        const dx = b.baseX - mouse.x;
-        const dy = b.baseY - mouse.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        let targetX = b.baseX;
-        let targetY = b.baseY;
-
-        if (dist < MOUSE_RADIUS && dist > 0) {
-          const force = (1 - dist / MOUSE_RADIUS) * 50;
-          targetX = b.baseX + (dx / dist) * force;
-          targetY = b.baseY + (dy / dist) * force;
-        }
-
-        // Smooth easing towards target
-        b.x += (targetX - b.x) * 0.08;
-        b.y += (targetY - b.y) * 0.08;
-
-        // Gentle rotation
-        b.rotation += b.rotationSpeed;
-
-        // Draw brain emoji
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(b.rotation);
-        ctx.globalAlpha = b.opacity;
-        if (b.isViolet) {
-          ctx.filter = "hue-rotate(240deg) saturate(1.5)"; // Turns pink into vibrant violet
-        }
-        ctx.font = `${b.size}px serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("🧠", 0, 0);
-        ctx.restore();
-      }
-    };
-
-    animate();
-
-    // ── Resize ───────────────────────────────────────────────────────
-    const handleResize = () => {
-      setSize();
-      // Redistribute brains that are out of bounds
-      for (const b of brains) {
-        if (b.baseX > w) b.baseX = Math.random() * w;
-        if (b.baseY > h) b.baseY = Math.random() * h;
-      }
-    };
-    window.addEventListener("resize", handleResize);
-
-    // ── Cleanup ──────────────────────────────────────────────────────
-    cleanupRef.current = () => {
-      cancelAnimationFrame(animId);
-      parent.removeEventListener("mousemove", handleMouseMove);
-      parent.removeEventListener("mouseleave", handleMouseLeave);
-      window.removeEventListener("resize", handleResize);
-    };
+    init();
 
     return () => {
-      cleanupRef.current?.();
+      cancelled = true;
+      if (vantaEffect) vantaEffect.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (vantaEffect) vantaEffect.destroy();
+    };
+  }, [vantaEffect]);
+
   return (
-    <canvas
-      ref={canvasRef}
-      className="pointer-events-none absolute inset-0 -z-10"
+    <div
+      ref={vantaRef}
+      className="pointer-events-none absolute inset-0 -z-10 opacity-70"
       aria-hidden="true"
     />
   );
