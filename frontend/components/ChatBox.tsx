@@ -47,6 +47,7 @@ export function ChatBox() {
   const [maxChars, setMaxChars] = useState(100); // default to free plan limit
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const canPersistRef = useRef(false);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
@@ -96,6 +97,13 @@ export function ChatBox() {
     if (!canPersistRef.current || !session.userId) return;
     saveChatHistory(session.userId, session.rows);
   }, [session]);
+
+  // Re-focus the input after loading completes so user can type immediately
+  useEffect(() => {
+    if (!loading) {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [loading]);
 
   const handleDeleteRow = useCallback((id: string) => {
     setSession((s) => ({ ...s, rows: s.rows.filter((r) => r.id !== id) }));
@@ -253,6 +261,7 @@ export function ChatBox() {
           <div className="flex items-end gap-2">
           <div className="relative flex-1">
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => {
