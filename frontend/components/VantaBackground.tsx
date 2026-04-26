@@ -31,7 +31,7 @@ export function VantaBackground() {
         minWidth: 200.0,
         scale: 1.0,
         scaleMobile: 1.0,
-        color: 0x8b5cf6,          // Violet
+        color: 0x8b5cf6,          // Voilet
         backgroundColor: 0x0a0a0a, // Near-black matching the app bg
         points: 10.0,
         maxDistance: 18.0,
