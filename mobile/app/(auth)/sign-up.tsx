@@ -11,7 +11,7 @@ import {
   Image,
   ScrollView,
 } from "react-native";
-import { useSignUp, useSSO } from "@clerk/expo";
+import { useSignUp, useSSO, useClerk } from "@clerk/expo";
 import { useRouter, Link } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
 import * as WebBrowser from "expo-web-browser";
@@ -20,8 +20,12 @@ import * as WebBrowser from "expo-web-browser";
 WebBrowser.maybeCompleteAuthSession();
 
 export default function SignUpScreen() {
-  const { signUp, setActive, isLoaded } = useSignUp();
+  // @clerk/expo v3 / @clerk/react v6 new API:
+  //   useSignUp() → { signUp: { create(), emailCode: { sendCode(), verifyCode() }, ... }, errors, fetchStatus }
+  //   setActive comes from useClerk()
+  const { signUp } = useSignUp();
   const { startSSOFlow } = useSSO();
+  const { setActive } = useClerk();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -75,8 +79,13 @@ export default function SignUpScreen() {
   // ── Email / Password Sign Up ────────────────────────────────────────
   const handleSignUp = useCallback(async () => {
     console.log("EMAIL SIGN UP PRESSED");
-    if (!isLoaded) {
-      console.log("SIGNUP GUARD: Clerk not loaded yet.");
+
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password.");
       return;
     }
 
@@ -84,32 +93,40 @@ export default function SignUpScreen() {
     setLoading(true);
 
     try {
-      await signUp.create({ emailAddress: email, password });
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      // New v6 API: signUp.create() is a gated method that auto-waits for Clerk
+      await signUp.create({ emailAddress: email.trim(), password });
+      // Send verification email
+      await signUp.emailCode.sendCode();
       setPendingVerification(true);
       console.log("Verification email sent.");
     } catch (err: any) {
-      console.log("SIGNUP ERROR:", err);
+      console.log("SIGNUP ERROR:", JSON.stringify(err, null, 2));
       setError(
         err?.errors?.[0]?.longMessage ||
+          err?.errors?.[0]?.message ||
           err?.message ||
           "Sign-up failed."
       );
     } finally {
       setLoading(false);
     }
-  }, [isLoaded, email, password, signUp]);
+  }, [email, password, signUp]);
 
   // ── Email Verification ──────────────────────────────────────────────
   const handleVerify = useCallback(async () => {
     console.log("VERIFY CODE PRESSED");
-    if (!isLoaded) return;
+
+    if (!code.trim()) {
+      setError("Please enter the verification code.");
+      return;
+    }
 
     setError("");
     setLoading(true);
 
     try {
-      const result = await signUp.attemptEmailAddressVerification({ code });
+      // New v6 API: signUp.emailCode.verifyCode()
+      const result = await signUp.emailCode.verifyCode({ code: code.trim() });
       console.log("Verification result:", result.status);
 
       if (result.status === "complete" && result.createdSessionId) {
@@ -118,16 +135,17 @@ export default function SignUpScreen() {
         router.replace("/(tabs)/chat");
       }
     } catch (err: any) {
-      console.log("VERIFY ERROR:", err);
+      console.log("VERIFY ERROR:", JSON.stringify(err, null, 2));
       setError(
         err?.errors?.[0]?.longMessage ||
+          err?.errors?.[0]?.message ||
           err?.message ||
           "Verification failed."
       );
     } finally {
       setLoading(false);
     }
-  }, [isLoaded, code, signUp, setActive, router]);
+  }, [code, signUp, setActive, router]);
 
   const isAnyLoading = loading || googleLoading;
 

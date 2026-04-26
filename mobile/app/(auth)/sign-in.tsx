@@ -11,7 +11,7 @@ import {
   Image,
   ScrollView,
 } from "react-native";
-import { useSignIn, useSSO } from "@clerk/expo";
+import { useSignIn, useSSO, useClerk } from "@clerk/expo";
 import { useRouter, Link } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
 import * as WebBrowser from "expo-web-browser";
@@ -20,8 +20,12 @@ import * as WebBrowser from "expo-web-browser";
 WebBrowser.maybeCompleteAuthSession();
 
 export default function SignInScreen() {
-  const { signIn, setActive, isLoaded } = useSignIn();
+  // @clerk/expo v3 / @clerk/react v6 new API:
+  //   useSignIn() → { signIn: { create(), password(), ... }, errors, fetchStatus }
+  //   setActive comes from useClerk()
+  const { signIn } = useSignIn();
   const { startSSOFlow } = useSSO();
+  const { setActive } = useClerk();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -37,29 +41,24 @@ export default function SignInScreen() {
     setGoogleLoading(true);
 
     try {
-      const { createdSessionId, setActive: ssoSetActive, signIn: ssoSignIn, signUp: ssoSignUp } = await startSSOFlow({
+      const { createdSessionId, setActive: ssoSetActive } = await startSSOFlow({
         strategy: "oauth_google",
       });
 
       console.log("SSO flow completed. Session:", createdSessionId);
 
       if (createdSessionId) {
-        // User already exists → set active session
         const activator = ssoSetActive || setActive;
         await activator({ session: createdSessionId });
         console.log("Google session activated. Navigating...");
         router.replace("/(tabs)/chat");
       } else {
-        // User needs to complete sign-up (first-time Google user)
-        // The SSO flow should handle this automatically via signUp
         console.log("No session created — may need additional verification.");
         setError("Sign in incomplete. Please try email/password or try again.");
       }
     } catch (err: any) {
       console.log("GOOGLE SSO ERROR:", err);
-      console.log("Error details:", JSON.stringify(err, null, 2));
 
-      // Don't show error if user simply cancelled the browser
       const msg = err?.message || "";
       if (msg.includes("cancel") || msg.includes("dismiss")) {
         console.log("User cancelled Google sign-in");
@@ -78,8 +77,13 @@ export default function SignInScreen() {
   // ── Email / Password Sign In ────────────────────────────────────────
   const handleSignIn = useCallback(async () => {
     console.log("EMAIL SIGN IN PRESSED");
-    if (!isLoaded) {
-      console.log("LOGIN GUARD: Clerk not loaded yet.");
+
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password.");
       return;
     }
 
@@ -87,12 +91,15 @@ export default function SignInScreen() {
     setLoading(true);
 
     try {
+      // New @clerk/react v6 API:
+      //   signIn.create() is a gated method that auto-waits for Clerk to load
+      //   It returns a SignInResource with status + createdSessionId
       const result = await signIn.create({
-        identifier: email,
+        identifier: email.trim(),
         password,
       });
 
-      console.log("Clerk response:", result.status);
+      console.log("Clerk response status:", result.status);
 
       if (result.status === "complete" && result.createdSessionId) {
         await setActive({ session: result.createdSessionId });
@@ -103,16 +110,17 @@ export default function SignInScreen() {
         setError("Sign-in incomplete. Please verify your email.");
       }
     } catch (err: any) {
-      console.log("LOGIN ERROR:", err);
+      console.log("LOGIN ERROR:", JSON.stringify(err, null, 2));
       setError(
         err?.errors?.[0]?.longMessage ||
+          err?.errors?.[0]?.message ||
           err?.message ||
-          "Sign-in failed. Please try again."
+          "Sign-in failed. Please check your credentials."
       );
     } finally {
       setLoading(false);
     }
-  }, [isLoaded, email, password, signIn, setActive, router]);
+  }, [email, password, signIn, setActive, router]);
 
   const isAnyLoading = loading || googleLoading;
 
