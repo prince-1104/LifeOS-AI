@@ -32,6 +32,7 @@ Rules:
 - Keep values clean and minimal
 - For finance: use "transaction_type" "income" or "expense" (not the top-level "type" field).
 - For finance income/expense, include "source" when the user names a person or place (e.g. sumit).
+- IMPORTANT: Questions ASKING about past spending (e.g. "how much did I spend on AC", "show me food expenses", "what did I spend on groceries") are "query" type, NOT "finance". The "finance" type is ONLY for RECORDING a new transaction.
 
 Examples:
 
@@ -48,6 +49,20 @@ Output:
 {
   "type": "query",
   "query": "keys location"
+}
+
+Input: "how much I have spend for AC"
+Output:
+{
+  "type": "query",
+  "query": "how much spent on AC"
+}
+
+Input: "show me AC expenses"
+Output:
+{
+  "type": "query",
+  "query": "AC expenses"
 }
 
 Input: "I spent 200 on food"

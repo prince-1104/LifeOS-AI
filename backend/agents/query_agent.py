@@ -174,6 +174,60 @@ def _is_week_spend_intent(low: str) -> bool:
     return "spend" in low or "spent" in low or "how much" in low
 
 
+# Words to strip when extracting the spending keyword from user input
+_SPEND_STRIP = frozenset({
+    "how", "much", "have", "i", "spend", "spent", "spending",
+    "send", "on", "for", "did", "do", "show", "me", "my",
+    "all", "total", "the", "a", "an", "get", "list",
+    "expenses", "expense", "spends", "what", "where",
+    "is", "are", "was", "were", "has", "been",
+    # Hindi
+    "kitna", "kitne", "kharcha", "kharche", "par", "pe",
+    "maine", "mera", "meri", "mere", "ka", "ki", "ke",
+    "kiya", "kiye", "dikhao", "batao", "hai", "h",
+})
+
+
+def _extract_spend_keyword(text: str) -> str | None:
+    """Return the spending keyword if user is asking about category-specific spend.
+
+    Examples that should match:
+      "how much I have spend for AC"  ->  "AC"
+      "show me AC spends"             ->  "AC"
+      "AC pe kitna kharcha"           ->  "AC"
+      "total spent on food"           ->  "food"
+    """
+    low = text.lower()
+
+    # Must contain a spending signal
+    spend_signals = (
+        "spend", "spent", "spending", "spends",
+        "send",  # common misspelling of "spend"
+        "kharcha", "kharche", "kitna", "kitne",
+        "expense", "expenses",
+    )
+    if not any(sig in low for sig in spend_signals):
+        return None
+
+    # Don't match pure aggregate queries (handled separately)
+    if _is_top_categories_intent(low):
+        return None
+    if "today" in low and "spend" in low:
+        return None
+    if _is_week_spend_intent(low):
+        return None
+
+    # Extract tokens, remove stopwords, return what's left
+    raw_tokens = re.findall(r"[a-zA-Z0-9]+", text)
+    keywords = [t for t in raw_tokens if t.lower() not in _SPEND_STRIP and len(t) > 1]
+
+    if keywords:
+        # Return original case to preserve proper nouns
+        return " ".join(keywords)
+    return None
+
+
+
 async def _try_finance_db_answer(
     text: str,
     uid: str,
@@ -182,6 +236,21 @@ async def _try_finance_db_answer(
     low = text.lower()
     svc = DBService(db)
     thr = Decimal(str(settings.FINANCE_HIGH_SPEND_WEEK_THRESHOLD))
+
+    # ── Category-specific spend query (e.g. "how much spent on AC") ───
+    keyword = _extract_spend_keyword(text)
+    if keyword:
+        items, total = await svc.search_expenses_by_keyword(uid, keyword)
+        if items:
+            lines = [f"💰 You spent a total of ₹{total} on **{keyword}**:"]
+            for item in items:
+                lines.append(
+                    f"  • {item['category']} — ₹{item['amount']}"
+                    + (f" ({item['date']})" if item['date'] else "")
+                )
+            return "\n".join(lines)
+        else:
+            return f"🔍 No expenses found matching \"{keyword}\"."
 
     if "spend" in low and "today" in low:
         total = await svc.get_total_spent_today(uid)

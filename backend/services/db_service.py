@@ -124,6 +124,48 @@ class DBService:
             out.append((str(c), Decimal(str(amt))))
         return out
 
+    async def search_expenses_by_keyword(
+        self,
+        user_id: str,
+        keyword: str,
+        limit: int = 50,
+    ) -> tuple[list[dict], Decimal]:
+        """Search expenses whose category OR note contains *keyword* (case-insensitive).
+
+        Returns (list_of_matching_transactions, total_amount).
+        """
+        pattern = f"%{keyword}%"
+        from sqlalchemy import or_
+
+        stmt = (
+            select(Transaction)
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.type == "expense",
+                or_(
+                    func.lower(Transaction.category).ilike(pattern.lower()),
+                    func.lower(Transaction.note).ilike(pattern.lower()),
+                ),
+            )
+            .order_by(Transaction.event_time.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        rows = list(result.scalars().all())
+
+        items: list[dict] = []
+        total = Decimal("0")
+        for r in rows:
+            amt = Decimal(str(r.amount)) if r.amount is not None else Decimal("0")
+            total += amt
+            items.append({
+                "category": r.category or "uncategorized",
+                "amount": amt,
+                "note": r.note or "",
+                "date": r.event_time.strftime("%d-%b-%Y") if r.event_time else "",
+            })
+        return items, total
+
     async def get_daily_expense_totals_last_7_days(
         self, user_id: str
     ) -> list[tuple[date, Decimal]]:
