@@ -33,7 +33,14 @@ Rules:
 - Keep values clean and minimal
 - For finance: use "transaction_type" "income" or "expense" (not the top-level "type" field).
 - For finance income/expense, include "source" when the user names a person or place (e.g. sumit).
-- IMPORTANT: Questions ASKING about past spending (e.g. "how much did I spend on AC", "show me food expenses", "what did I spend on groceries") are "query" type, NOT "finance". The "finance" type is ONLY for RECORDING a new transaction.
+- IMPORTANT: The "finance" type is ONLY for RECORDING a new transaction (e.g. "spent 200 on food", "received 1000 from dad").
+- IMPORTANT: Questions ASKING about data are ALWAYS "query" type. This includes:
+  * Spending questions: "how much did I spend today", "total spend this week", "where am I spending more", "show me food expenses"
+  * Reminder questions: "what are my reminders", "meetings on Monday", "what tasks do I have tomorrow"
+  * Income questions: "how much did I earn", "total income this month"
+  * Memory questions: "where are my keys", "what is my wifi password"
+  * Summary questions: "give me a summary", "financial overview"
+  * ANY question about past/existing data = "query"
 - Greetings like "hi", "hello", "hey", "good morning", "good evening", "sup", "yo", "what's up" etc. are "greeting" type.
 
 MULTI-ITEM MESSAGES:
@@ -89,6 +96,69 @@ Output:
 {
   "type": "query",
   "query": "AC expenses"
+}
+
+Input: "total spend in today"
+Output:
+{
+  "type": "query",
+  "query": "total spend today"
+}
+
+Input: "how much did i spend this week"
+Output:
+{
+  "type": "query",
+  "query": "total spend this week"
+}
+
+Input: "how much did i spend this month"
+Output:
+{
+  "type": "query",
+  "query": "total spend this month"
+}
+
+Input: "where am I spending more"
+Output:
+{
+  "type": "query",
+  "query": "where spending more top categories"
+}
+
+Input: "what are my reminders for Monday"
+Output:
+{
+  "type": "query",
+  "query": "reminders for Monday"
+}
+
+Input: "what meetings do I have tomorrow"
+Output:
+{
+  "type": "query",
+  "query": "meetings tomorrow"
+}
+
+Input: "show my pending reminders"
+Output:
+{
+  "type": "query",
+  "query": "pending reminders"
+}
+
+Input: "how much income this month"
+Output:
+{
+  "type": "query",
+  "query": "income this month"
+}
+
+Input: "give me a spending summary"
+Output:
+{
+  "type": "query",
+  "query": "spending summary"
 }
 
 Input: "I spent 200 on food"

@@ -336,3 +336,163 @@ class DBService:
         await self.session.delete(row)
         await self.session.commit()
         return True
+
+    # ── Smart query helpers ───────────────────────────────────────────
+
+    async def get_total_spent_today(self, user_id: str) -> Decimal:
+        """Total expenses recorded today (UTC date)."""
+        stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == "expense",
+            func.date(Transaction.event_time) == func.current_date(),
+        )
+        result = await self.session.execute(stmt)
+        total = result.scalar_one()
+        return Decimal(str(total)) if total is not None else Decimal("0")
+
+    async def get_total_income_today(self, user_id: str) -> Decimal:
+        """Total income recorded today (UTC date)."""
+        stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == "income",
+            func.date(Transaction.event_time) == func.current_date(),
+        )
+        result = await self.session.execute(stmt)
+        total = result.scalar_one()
+        return Decimal(str(total)) if total is not None else Decimal("0")
+
+    async def get_total_spent_period(
+        self, user_id: str, days: int
+    ) -> Decimal:
+        """Total expenses in the last N days."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == "expense",
+            Transaction.event_time >= cutoff,
+        )
+        result = await self.session.execute(stmt)
+        total = result.scalar_one()
+        return Decimal(str(total)) if total is not None else Decimal("0")
+
+    async def get_total_income_period(
+        self, user_id: str, days: int
+    ) -> Decimal:
+        """Total income in the last N days."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        stmt = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == "income",
+            Transaction.event_time >= cutoff,
+        )
+        result = await self.session.execute(stmt)
+        total = result.scalar_one()
+        return Decimal(str(total)) if total is not None else Decimal("0")
+
+    async def get_transactions_in_period(
+        self, user_id: str, days: int, txn_type: str | None = None, limit: int = 50
+    ) -> list[Transaction]:
+        """Recent transactions in the last N days, optionally filtered by type."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        conditions = [
+            Transaction.user_id == user_id,
+            Transaction.event_time >= cutoff,
+        ]
+        if txn_type:
+            conditions.append(Transaction.type == txn_type)
+        stmt = (
+            select(Transaction)
+            .where(*conditions)
+            .order_by(Transaction.event_time.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_spending_by_category_period(
+        self, user_id: str, days: int, limit: int = 10
+    ) -> list[tuple[str, Decimal]]:
+        """Sum expenses by category for the last N days."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cat = func.coalesce(Transaction.category, "uncategorized")
+        stmt = (
+            select(cat, func.sum(Transaction.amount))
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.type == "expense",
+                Transaction.event_time >= cutoff,
+            )
+            .group_by(cat)
+            .order_by(func.sum(Transaction.amount).desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        rows = result.all()
+        out: list[tuple[str, Decimal]] = []
+        for c, s in rows:
+            amt = s if s is not None else Decimal("0")
+            out.append((str(c), Decimal(str(amt))))
+        return out
+
+    async def get_reminders_by_date_range(
+        self, user_id: str, start_date: datetime, end_date: datetime
+    ) -> list[Reminder]:
+        """Reminders within a date range."""
+        stmt = (
+            select(Reminder)
+            .where(
+                Reminder.user_id == user_id,
+                Reminder.reminder_time >= start_date,
+                Reminder.reminder_time <= end_date,
+            )
+            .order_by(Reminder.reminder_time.asc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_pending_reminders(self, user_id: str) -> list[Reminder]:
+        """All pending reminders (not done yet)."""
+        stmt = (
+            select(Reminder)
+            .where(
+                Reminder.user_id == user_id,
+                Reminder.status == "pending",
+            )
+            .order_by(Reminder.reminder_time.asc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_all_reminders_upcoming(
+        self, user_id: str, days: int = 7
+    ) -> list[Reminder]:
+        """Upcoming reminders in the next N days."""
+        now = datetime.now(timezone.utc)
+        cutoff = now + timedelta(days=days)
+        stmt = (
+            select(Reminder)
+            .where(
+                Reminder.user_id == user_id,
+                Reminder.reminder_time >= now,
+                Reminder.reminder_time <= cutoff,
+            )
+            .order_by(Reminder.reminder_time.asc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_spending_summary(self, user_id: str) -> dict:
+        """Comprehensive spending summary: today, week, month, top categories."""
+        today = await self.get_total_spent_today(user_id)
+        week = await self.get_total_spent_period(user_id, 7)
+        month = await self.get_total_spent_period(user_id, 30)
+        income_month = await self.get_total_income_period(user_id, 30)
+        top_cats = await self.get_spending_by_category_period(user_id, 30, limit=5)
+        return {
+            "today": today,
+            "week": week,
+            "month": month,
+            "income_month": income_month,
+            "top_categories": top_cats,
+        }
+
