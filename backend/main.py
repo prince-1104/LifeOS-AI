@@ -99,5 +99,6 @@ async def process(
         db,
         request_id=request_id,
         user_timezone=tz,
+        user_name=user.first_name,
     )
     return ProcessResponseEnvelope.model_validate(result)

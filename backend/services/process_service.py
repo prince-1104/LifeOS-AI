@@ -63,6 +63,7 @@ async def process_input(
     *,
     request_id: str,
     user_timezone: ZoneInfo | None = None,
+    user_name: str | None = None,
 ) -> dict:
     input_text = input_text.strip()
     settings = get_settings()
@@ -235,6 +236,7 @@ async def process_input(
             user_timezone=user_timezone,
             plan_config=plan_config,
             use_fallback_model=use_fallback_model,
+            user_name=user_name,
         )
         route_ms = (time.perf_counter() - t1) * 1000.0
         try:

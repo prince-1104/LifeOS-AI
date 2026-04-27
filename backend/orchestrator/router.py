@@ -27,6 +27,7 @@ async def route(
     user_timezone: ZoneInfo | None = None,
     plan_config: PlanConfig | None = None,
     use_fallback_model: bool = False,
+    user_name: str | None = None,
 ) -> tuple[str, str]:
     """
     Dispatch by orchestrator type.  Returns (response_text, type_string).
@@ -107,6 +108,33 @@ async def route(
             logger.exception("Failed to increment reminder counter for user %s", user_id)
 
         return text, "reminder"
+
+    if t == "greeting":
+        # ── Personalized greeting ─────────────────────────────────────
+        display_name = user_name or "there"
+        if not user_name:
+            # Try to fetch name from DB as fallback
+            try:
+                from sqlalchemy import text as sql_text
+                result = await db.execute(
+                    sql_text("SELECT first_name FROM users WHERE id = :uid"),
+                    {"uid": user_id},
+                )
+                row = result.fetchone()
+                if row and row[0]:
+                    display_name = row[0]
+            except Exception:
+                logger.exception("Failed to fetch user name for greeting")
+
+        greeting_msg = (
+            f"Hello {display_name}! 👋\n\n"
+            f"I'm your personal life assistant. Here's what I can do for you:\n\n"
+            f"💰 **Daily Expenses** — Just tell me what you spent, e.g. \"spent 200 on food\"\n"
+            f"⏰ **Reminders** — e.g. \"remind me at 7pm to call mom\"\n"
+            f"🧠 **Memory** — e.g. \"remember my wifi password is abc123\"\n\n"
+            f"Go ahead, I'll handle it for you! 🚀"
+        )
+        return greeting_msg, "greeting"
 
     return "🤔 I didn't understand that. Try rephrasing?", "unknown"
 

@@ -23,6 +23,7 @@ You MUST classify input into one of these types:
 - query
 - finance
 - reminder
+- greeting
 - unknown
 
 Rules:
@@ -33,8 +34,27 @@ Rules:
 - For finance: use "transaction_type" "income" or "expense" (not the top-level "type" field).
 - For finance income/expense, include "source" when the user names a person or place (e.g. sumit).
 - IMPORTANT: Questions ASKING about past spending (e.g. "how much did I spend on AC", "show me food expenses", "what did I spend on groceries") are "query" type, NOT "finance". The "finance" type is ONLY for RECORDING a new transaction.
+- Greetings like "hi", "hello", "hey", "good morning", "good evening", "sup", "yo", "what's up" etc. are "greeting" type.
 
 Examples:
+
+Input: "hi"
+Output:
+{
+  "type": "greeting"
+}
+
+Input: "hello"
+Output:
+{
+  "type": "greeting"
+}
+
+Input: "good morning"
+Output:
+{
+  "type": "greeting"
+}
 
 Input: "remember my keys are under the table"
 Output:
