@@ -22,7 +22,7 @@ def _rid():
 async def test_process_input_success(
     mock_classify, mock_route, mock_orch_log, mock_agent_log, mock_log, _mock_rl
 ):
-    mock_classify.return_value = OrchestratorOutput(type="memory", content="x", tags=[])
+    mock_classify.return_value = ([OrchestratorOutput(type="memory", content="x", tags=[])], {})
     mock_route.return_value = ("ok", "memory")
     db = MagicMock()
 
@@ -67,7 +67,7 @@ async def test_process_input_error_on_classify(
 async def test_process_input_error_on_route(
     mock_classify, mock_route, mock_err, mock_orch, mock_agent, _mock_rl
 ):
-    mock_classify.return_value = OrchestratorOutput(type="memory", content="x", tags=[])
+    mock_classify.return_value = ([OrchestratorOutput(type="memory", content="x", tags=[])], {})
     mock_route.side_effect = RuntimeError("boom")
     db = MagicMock()
 
@@ -88,7 +88,7 @@ async def test_process_input_error_on_route(
 async def test_process_input_succeeds_when_log_query_fails(
     mock_classify, mock_route, mock_orch, mock_agent, mock_log, _mock_rl
 ):
-    mock_classify.return_value = OrchestratorOutput(type="query", query="q")
+    mock_classify.return_value = ([OrchestratorOutput(type="query", query="q")], {})
     mock_route.return_value = ("answer", "query")
     mock_log.side_effect = RuntimeError("db full")
     db = MagicMock()

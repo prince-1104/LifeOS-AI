@@ -59,3 +59,19 @@ def build_data_payload(orch: OrchestratorOutput, result_type: str) -> dict | Non
         return None
 
     return None
+
+
+def build_multi_data_payload(
+    orch_list: list[OrchestratorOutput],
+    type_list: list[str],
+) -> dict | None:
+    """Build a data payload containing an `items` array for multi-item responses."""
+    items = []
+    for orch, t in zip(orch_list, type_list):
+        item_data = build_data_payload(orch, t)
+        if item_data is not None:
+            item_data["type"] = t
+        else:
+            item_data = {"type": t}
+        items.append(item_data)
+    return {"items": items} if items else None

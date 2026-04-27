@@ -10,11 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_response import (
     ProcessResponseEnvelope,
     build_data_payload,
+    build_multi_data_payload,
     utc_timestamp,
 )
 from config import get_settings
 from orchestrator.orchestrator_llm import classify_llm
 from orchestrator.router import route
+from schemas import OrchestratorOutput
 from services.log_service import (
     log_agent_step,
     log_error,
@@ -162,16 +164,17 @@ async def process_input(
 
     t0 = time.perf_counter()
     try:
-        orch, orch_usage = await classify_llm(input_text)
+        orch_list, orch_usage = await classify_llm(input_text)
         orch_ms = (time.perf_counter() - t0) * 1000.0
         try:
+            # Log the first item for backward compatibility
             await log_orchestrator_step(
                 db,
                 request_id=request_id,
                 user_id=user_id,
                 input_text=input_text,
                 latency_ms=orch_ms,
-                orchestrator_json=orch_to_json(orch),
+                orchestrator_json=orch_to_json(orch_list[0]),
                 error_message=None,
             )
         except Exception:
@@ -226,30 +229,81 @@ async def process_input(
             data=None,
         )
 
+    # ── Route: single item vs multi-item ──────────────────────────────
+    is_multi = len(orch_list) > 1
+
     try:
-        t1 = time.perf_counter()
-        response, type_str = await route(
-            input_text,
-            orch,
-            db,
-            user_id,
-            user_timezone=user_timezone,
-            plan_config=plan_config,
-            use_fallback_model=use_fallback_model,
-            user_name=user_name,
-        )
-        route_ms = (time.perf_counter() - t1) * 1000.0
-        try:
-            await log_agent_step(
+        if is_multi:
+            # Process each item and collect responses
+            responses: list[str] = []
+            types: list[str] = []
+            all_orch: list[OrchestratorOutput] = []
+
+            t1 = time.perf_counter()
+            for orch in orch_list:
+                response, type_str = await route(
+                    input_text,
+                    orch,
+                    db,
+                    user_id,
+                    user_timezone=user_timezone,
+                    plan_config=plan_config,
+                    use_fallback_model=use_fallback_model,
+                    user_name=user_name,
+                )
+                responses.append(response)
+                types.append(type_str)
+                all_orch.append(orch)
+            route_ms = (time.perf_counter() - t1) * 1000.0
+
+            # Combined response text
+            combined_response = "\n".join(responses)
+            # Determine dominant type for the envelope
+            type_str = "multi"
+            # Build multi-item data payload
+            data = build_multi_data_payload(all_orch, types)
+
+            try:
+                await log_agent_step(
+                    db,
+                    request_id=request_id,
+                    user_id=user_id,
+                    agent=type_str,
+                    latency_ms=route_ms,
+                    response_text=combined_response,
+                )
+            except Exception:
+                logger.exception("agent_logs insert failed")
+
+            response = combined_response
+        else:
+            orch = orch_list[0]
+            t1 = time.perf_counter()
+            response, type_str = await route(
+                input_text,
+                orch,
                 db,
-                request_id=request_id,
-                user_id=user_id,
-                agent=type_str,
-                latency_ms=route_ms,
-                response_text=response,
+                user_id,
+                user_timezone=user_timezone,
+                plan_config=plan_config,
+                use_fallback_model=use_fallback_model,
+                user_name=user_name,
             )
-        except Exception:
-            logger.exception("agent_logs insert failed")
+            route_ms = (time.perf_counter() - t1) * 1000.0
+            data = build_data_payload(orch, type_str)
+
+            try:
+                await log_agent_step(
+                    db,
+                    request_id=request_id,
+                    user_id=user_id,
+                    agent=type_str,
+                    latency_ms=route_ms,
+                    response_text=response,
+                )
+            except Exception:
+                logger.exception("agent_logs insert failed")
+
     except Exception as exc:
         try:
             await log_error(
@@ -271,7 +325,6 @@ async def process_input(
         )
 
     total_ms = (time.perf_counter() - t_total_start) * 1000.0
-    data = build_data_payload(orch, type_str)
 
     try:
         await log_query(
@@ -300,4 +353,3 @@ async def process_input(
         request_id=request_id,
         data=data,
     )
-

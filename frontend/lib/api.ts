@@ -28,8 +28,22 @@ export type ProcessType =
   | "finance"
   | "reminder"
   | "limit"
+  | "multi"
   | "unknown"
   | "error";
+
+export type ProcessDataItem = {
+  type?: string;
+  content?: string;
+  tags?: string[];
+  query?: string;
+  amount?: number;
+  category?: string;
+  transaction_type?: "income" | "expense";
+  source?: string;
+  task?: string;
+  time?: string;
+};
 
 export type ProcessData = {
   content?: string;
@@ -41,6 +55,7 @@ export type ProcessData = {
   source?: string;
   task?: string;
   time?: string;
+  items?: ProcessDataItem[];
 } | null;
 
 export type ProcessResponse = {

@@ -99,9 +99,12 @@ async def test_classify_llm_parses_json(mock_client):
     mock_resp.choices = [
         MagicMock(message=MagicMock(content=json.dumps(orch_json)))
     ]
+    mock_resp.usage = None
     mock_client.chat.completions.create = AsyncMock(return_value=mock_resp)
 
-    out = await classify_llm("I kept my bike key under table")
+    out_list, usage = await classify_llm("I kept my bike key under table")
+    assert len(out_list) == 1
+    out = out_list[0]
     assert out.type == "memory"
     assert out.content == "bike key under table"
     assert out.tags == ["bike", "location"]
@@ -112,7 +115,9 @@ async def test_classify_llm_parses_json(mock_client):
 async def test_classify_llm_invalid_json_returns_unknown(mock_client):
     mock_resp = MagicMock()
     mock_resp.choices = [MagicMock(message=MagicMock(content="not json"))]
+    mock_resp.usage = None
     mock_client.chat.completions.create = AsyncMock(return_value=mock_resp)
 
-    out = await classify_llm("x")
-    assert out.type == "unknown"
+    out_list, usage = await classify_llm("x")
+    assert len(out_list) == 1
+    assert out_list[0].type == "unknown"

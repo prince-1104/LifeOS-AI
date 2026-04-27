@@ -36,6 +36,12 @@ Rules:
 - IMPORTANT: Questions ASKING about past spending (e.g. "how much did I spend on AC", "show me food expenses", "what did I spend on groceries") are "query" type, NOT "finance". The "finance" type is ONLY for RECORDING a new transaction.
 - Greetings like "hi", "hello", "hey", "good morning", "good evening", "sup", "yo", "what's up" etc. are "greeting" type.
 
+MULTI-ITEM MESSAGES:
+- When a user mentions MULTIPLE items in a single message (e.g. multiple expenses, or an expense + a reminder), you MUST return ALL of them as an "items" array.
+- Each item in the array is a complete standalone object with its own "type" field.
+- ALWAYS use the "items" array format when there are 2 or more distinct items.
+- Parse ALL amounts and categories carefully from the message. Pay close attention to the structure: "spend 10 for tea 120 food 550 in shopping" means THREE expenses: 10 for tea, 120 for food, 550 for shopping.
+
 Examples:
 
 Input: "hi"
@@ -143,11 +149,62 @@ Output:
   "task": "exercise",
   "time": "tomorrow 6:30am"
 }
+
+Input: "spend 10 for tea 120 food 550 in shopping"
+Output:
+{
+  "items": [
+    {"type": "finance", "amount": 10, "transaction_type": "expense", "category": "tea"},
+    {"type": "finance", "amount": 120, "transaction_type": "expense", "category": "food"},
+    {"type": "finance", "amount": 550, "transaction_type": "expense", "category": "shopping"}
+  ]
+}
+
+Input: "spent 50 on snacks and remind me at 6pm to buy groceries"
+Output:
+{
+  "items": [
+    {"type": "finance", "amount": 50, "transaction_type": "expense", "category": "snacks"},
+    {"type": "reminder", "task": "buy groceries", "time": "18:00"}
+  ]
+}
+
+Input: "tea 20 coffee 15 lunch 150"
+Output:
+{
+  "items": [
+    {"type": "finance", "amount": 20, "transaction_type": "expense", "category": "tea"},
+    {"type": "finance", "amount": 15, "transaction_type": "expense", "category": "coffee"},
+    {"type": "finance", "amount": 150, "transaction_type": "expense", "category": "lunch"}
+  ]
+}
+
+Input: "auto 30 bus 20 metro 40"
+Output:
+{
+  "items": [
+    {"type": "finance", "amount": 30, "transaction_type": "expense", "category": "auto"},
+    {"type": "finance", "amount": 20, "transaction_type": "expense", "category": "bus"},
+    {"type": "finance", "amount": 40, "transaction_type": "expense", "category": "metro"}
+  ]
+}
+
+Input: "received 5000 from dad and spent 200 on groceries"
+Output:
+{
+  "items": [
+    {"type": "finance", "amount": 5000, "transaction_type": "income", "source": "dad"},
+    {"type": "finance", "amount": 200, "transaction_type": "expense", "category": "groceries"}
+  ]
+}
 """
 
 
-async def classify_llm(user_input: str) -> tuple[OrchestratorOutput, dict]:
-    """Classify user input and return (parsed_output, token_usage_dict)."""
+async def classify_llm(user_input: str) -> tuple[list[OrchestratorOutput], dict]:
+    """Classify user input and return (list_of_parsed_outputs, token_usage_dict).
+
+    Always returns a list (even for single-item inputs) for uniform handling.
+    """
     response = await _client.chat.completions.create(
         model=settings.ORCHESTRATOR_MODEL,
         messages=[
@@ -170,11 +227,24 @@ async def classify_llm(user_input: str) -> tuple[OrchestratorOutput, dict]:
 
     raw = response.choices[0].message.content
     if not raw:
-        return OrchestratorOutput(type="unknown"), usage
+        return [OrchestratorOutput(type="unknown")], usage
 
     try:
         data = json.loads(raw)
-        return OrchestratorOutput.model_validate(data), usage
-    except (json.JSONDecodeError, ValidationError, ValueError):
-        return OrchestratorOutput(type="unknown"), usage
 
+        # Multi-item response: {"items": [...]}
+        if "items" in data and isinstance(data["items"], list):
+            outputs = []
+            for item in data["items"]:
+                try:
+                    outputs.append(OrchestratorOutput.model_validate(item))
+                except (ValidationError, ValueError):
+                    continue  # skip malformed items
+            if outputs:
+                return outputs, usage
+            return [OrchestratorOutput(type="unknown")], usage
+
+        # Single-item response: {"type": "...", ...}
+        return [OrchestratorOutput.model_validate(data)], usage
+    except (json.JSONDecodeError, ValidationError, ValueError):
+        return [OrchestratorOutput(type="unknown")], usage

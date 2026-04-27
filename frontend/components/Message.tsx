@@ -1,4 +1,4 @@
-import type { ProcessData, ProcessType } from "@/lib/api";
+import type { ProcessData, ProcessDataItem, ProcessType } from "@/lib/api";
 import { LimitMessage } from "./subscription/LimitMessage";
 
 export type AssistantPayload = {
@@ -40,6 +40,69 @@ function formatMessageTime(t?: number) {
   if (!t) return null;
   const d = new Date(t);
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s/g, '').toLowerCase();
+}
+
+function MultiItemCard({ item }: { item: ProcessDataItem }) {
+  if (item.type === "finance" && item.amount != null) {
+    const tag =
+      item.transaction_type === "income"
+        ? "Income"
+        : item.transaction_type === "expense"
+          ? "Expense"
+          : "Finance";
+    return (
+      <div className="glass-panel max-w-[min(100%,42rem)] rounded-2xl px-4 py-3">
+        <div className="mb-2 flex items-center gap-2 text-sm text-slate-400">
+          <span aria-hidden>{item.transaction_type === "income" ? "💵" : "💸"}</span>
+          <span>Finance</span>
+        </div>
+        <p className="text-xl font-semibold tracking-tight text-white">
+          {formatInr(Number(item.amount))}
+        </p>
+        {item.category ? (
+          <p className="mt-0.5 text-sm capitalize text-slate-400">{item.category}</p>
+        ) : null}
+        <span className="mt-2 inline-flex rounded-full bg-white/[0.06] px-2.5 py-1 text-xs font-medium text-slate-300">
+          {tag}
+        </span>
+      </div>
+    );
+  }
+
+  if (item.type === "reminder" && (item.task || item.time)) {
+    return (
+      <div className="glass-panel max-w-[min(100%,42rem)] rounded-2xl px-4 py-3">
+        <div className="mb-2 flex items-center gap-2 text-sm text-slate-400">
+          <span aria-hidden>⏰</span>
+          <span>Reminder</span>
+        </div>
+        {item.task ? <p className="text-[15px] font-medium text-white">{item.task}</p> : null}
+        {item.time ? <p className="mt-0.5 text-sm text-slate-400">{item.time}</p> : null}
+      </div>
+    );
+  }
+
+  if (item.type === "memory" && (item.content || (item.tags && item.tags.length))) {
+    return (
+      <div className="glass-panel max-w-[min(100%,42rem)] rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+        <div className="mb-2 flex items-center gap-2 text-sm text-slate-500">
+          <span aria-hidden>🧠</span>
+          <span>Memory</span>
+        </div>
+        {item.content ? <p className="text-[15px] leading-relaxed text-slate-200">{item.content}</p> : null}
+        {item.tags && item.tags.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {item.tags.map((t: string) => (
+              <span key={t} className="rounded-md bg-white/[0.05] px-2 py-0.5 text-xs text-slate-400">{t}</span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  // Generic fallback for unknown item types
+  return null;
 }
 
 
@@ -210,6 +273,28 @@ export function Message({
       return <LimitMessage message={response} timestamp={timestamp} />;
     }
 
+    /* Multi-item response (multiple expenses, reminders, etc. in one message) */
+    if (type === "multi" && data?.items && data.items.length > 0) {
+      return (
+        <div className="animate-message-in flex justify-start">
+          <div className="flex flex-col items-start gap-2">
+            {data.items.map((item: ProcessDataItem, idx: number) => (
+              <MultiItemCard key={idx} item={item} />
+            ))}
+            {response ? (
+              <div className="glass-panel max-w-[min(100%,42rem)] rounded-2xl px-4 py-3">
+                <HighlightedText text={response} />
+              </div>
+            ) : null}
+            {timestamp ? (
+              <span className="mt-1 pl-2 text-[11px] font-medium text-zinc-500/80">
+                {formatMessageTime(timestamp)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
     /* query, unknown, or structured fallbacks */
     return (
       <div className="animate-message-in flex justify-start">
