@@ -252,6 +252,46 @@ Output:
   "time": "May 5 3pm"
 }
 
+Input: "kal sham 5pm ko chai peeni h"
+Output:
+{
+  "type": "reminder",
+  "task": "chai peeni",
+  "time": "kal 5pm"
+}
+
+Input: "kal subah 7 baje exercise karna h"
+Output:
+{
+  "type": "reminder",
+  "task": "exercise",
+  "time": "kal subah 7"
+}
+
+Input: "aaj raat 10 baje medicine leni h"
+Output:
+{
+  "type": "reminder",
+  "task": "medicine leni",
+  "time": "aaj raat 10"
+}
+
+Input: "parso dopahar 2 baje meeting h"
+Output:
+{
+  "type": "reminder",
+  "task": "meeting",
+  "time": "parso dopahar 2"
+}
+
+Input: "kal sham ko 5 baje gym jana h"
+Output:
+{
+  "type": "reminder",
+  "task": "gym jana",
+  "time": "kal sham 5"
+}
+
 Input: "spend 10 for tea 120 food 550 in shopping"
 Output:
 {

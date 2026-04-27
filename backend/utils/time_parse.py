@@ -3,10 +3,12 @@
 Handles:
   - Relative durations: "2 minutes", "1 hour", "in 30m", "+5min"
   - Simple wall-clock: "7pm", "19:00", "10:30am"
-  - Tomorrow: "tomorrow 6:30am"
-  - Date of month: "28th 10:30am", "28th at 14:00", "on 15th at 2pm", "1st 9am"
+  - Tomorrow: "tomorrow 6:30am", "kal 5pm"
+  - Date of month: "28th 10:30am", "28th at 14:00", "on 15th at 2pm"
   - Day names: "Monday 10am", "next friday 3pm"
   - Full dates: "May 5 at 2pm", "April 28 10:30am"
+  - Hindi time-of-day: "subah 7" (morning 7am), "sham 5" (evening 5pm)
+  - Hindi day words: "kal" (tomorrow), "parso" (day after tomorrow)
 """
 
 import re
@@ -37,6 +39,96 @@ _MONTH_NAMES = {
     "november": 11, "nov": 11,
     "december": 12, "dec": 12,
 }
+
+# Hindi time-of-day words → (start_hour, end_hour) range for AM/PM inference.
+# When the user says "subah 7", we know it's 7 AM (morning range).
+# When the user says "sham 5", we know it's 5 PM (evening range).
+_HINDI_TOD_MORNING = frozenset({
+    "subah", "suabh", "subh", "sbh", "savere", "sawere",
+    "morning", "pratah",
+})
+_HINDI_TOD_AFTERNOON = frozenset({
+    "dopahar", "dopaher", "dopair", "dupair", "dooper", "doper",
+    "dhoper", "dhopahar", "dupahar", "dupher",
+    "afternoon",
+})
+_HINDI_TOD_EVENING = frozenset({
+    "sham", "shaam", "sam", "saam", "sayam",
+    "evening",
+})
+_HINDI_TOD_NIGHT = frozenset({
+    "raat", "rat", "raatko", "ratko", "night",
+})
+
+# Hindi day words
+_HINDI_TOMORROW = frozenset({"kal", "kal", "kl"})
+_HINDI_DAY_AFTER = frozenset({"parso", "parson", "parsu"})
+_HINDI_TODAY = frozenset({"aaj", "aaz", "aj"})
+
+
+def _detect_hindi_tod(text: str) -> str | None:
+    """Detect Hindi time-of-day from text. Returns 'morning'/'afternoon'/'evening'/'night' or None."""
+    words = text.lower().split()
+    for w in words:
+        if w in _HINDI_TOD_MORNING:
+            return "morning"
+        if w in _HINDI_TOD_AFTERNOON:
+            return "afternoon"
+        if w in _HINDI_TOD_EVENING:
+            return "evening"
+        if w in _HINDI_TOD_NIGHT:
+            return "night"
+    return None
+
+
+def _strip_hindi_tod(text: str) -> str:
+    """Remove Hindi time-of-day words from text."""
+    all_tod = _HINDI_TOD_MORNING | _HINDI_TOD_AFTERNOON | _HINDI_TOD_EVENING | _HINDI_TOD_NIGHT
+    words = text.split()
+    return " ".join(w for w in words if w.lower() not in all_tod).strip()
+
+
+def _strip_hindi_day_words(text: str) -> str:
+    """Remove Hindi day words from text."""
+    all_days = _HINDI_TOMORROW | _HINDI_DAY_AFTER | _HINDI_TODAY
+    words = text.split()
+    return " ".join(w for w in words if w.lower() not in all_days).strip()
+
+
+def _apply_tod_to_hour(hour: int, tod: str | None) -> int:
+    """Adjust hour based on time-of-day context when no AM/PM was specified.
+
+    morning (subah)    → 5-11 (keep as-is if 1-11, treat as AM)
+    afternoon (dopahar) → 12-16 (add 12 if hour < 12)
+    evening (sham)     → 16-20 (add 12 if hour < 12)
+    night (raat)       → 20-23 or 0-4 (add 12 if hour < 12 and hour > 4)
+    """
+    if tod is None:
+        return hour
+    if tod == "morning":
+        # morning: hours should be AM (no adjustment needed for 1-11)
+        return hour
+    if tod == "afternoon":
+        if hour < 12:
+            return hour + 12
+        return hour
+    if tod == "evening":
+        if hour < 12:
+            return hour + 12
+        return hour
+    if tod == "night":
+        if 1 <= hour <= 4:
+            # Late night: keep as-is (1am-4am)
+            return hour
+        if hour < 12:
+            return hour + 12
+        return hour
+    return hour
+
+
+def _has_ampm(s: str) -> bool:
+    """Check if the string already contains explicit AM/PM markers."""
+    return bool(re.search(r"(?:a\.?m\.?|p\.?m\.?|am|pm)\b", s.lower()))
 
 
 def _combine_utc(d: date, hour: int, minute: int) -> datetime:
@@ -89,6 +181,13 @@ def _parse_hour_minute(s: str) -> tuple[int, int] | None:
         h, mn = int(m.group(1)), int(m.group(2))
         if 0 <= h <= 23 and 0 <= mn <= 59:
             return h, mn
+
+    # Bare number: "5", "10" (used with Hindi time-of-day context)
+    m = re.match(r"^(\d{1,2})$", s)
+    if m:
+        h = int(m.group(1))
+        if 1 <= h <= 12:
+            return h, 0
 
     return None
 
@@ -277,16 +376,51 @@ def parse_time(
 
     low = raw.lower().strip()
 
-    # ── 2. "tomorrow" prefix ──────────────────────────────────────────
+    # ── 2. "tomorrow" / "kal" prefix ───────────────────────────────────
     use_tomorrow = "tomorrow" in low
-    if use_tomorrow:
+    kal_match = any(w in low.split() for w in _HINDI_TOMORROW)
+    parso_match = any(w in low.split() for w in _HINDI_DAY_AFTER)
+    aaj_match = any(w in low.split() for w in _HINDI_TODAY)
+
+    if use_tomorrow or kal_match:
         rest = re.sub(r"\bto-?morrow\b", " ", low, flags=re.I).strip()
-        rest = re.sub(r"^at\s+", "", rest)
-        hm = _parse_hour_minute(rest)
+        rest = _strip_hindi_day_words(rest)
+        tod = _detect_hindi_tod(rest)
+        rest = _strip_hindi_tod(rest)
+        rest = re.sub(r"^(?:at|ko|pe)\s+", "", rest).strip()
+        hm = _parse_hour_minute(rest) if rest else None
         if hm is None:
-            raise ValueError(f"unrecognized time format: {time_str!r}")
+            hm = (9, 0)  # default to 9 AM
+        hour = _apply_tod_to_hour(hm[0], tod) if not _has_ampm(rest) else hm[0]
         target_date = base_date + timedelta(days=1)
-        return _make_utc(target_date, hm[0], hm[1], tz, now_utc)
+        return _make_utc(target_date, hour, hm[1], tz, now_utc)
+
+    if parso_match:
+        rest = _strip_hindi_day_words(low)
+        tod = _detect_hindi_tod(rest)
+        rest = _strip_hindi_tod(rest)
+        rest = re.sub(r"^(?:at|ko|pe)\s+", "", rest).strip()
+        hm = _parse_hour_minute(rest) if rest else None
+        if hm is None:
+            hm = (9, 0)
+        hour = _apply_tod_to_hour(hm[0], tod) if not _has_ampm(rest) else hm[0]
+        target_date = base_date + timedelta(days=2)
+        return _make_utc(target_date, hour, hm[1], tz, now_utc)
+
+    if aaj_match:
+        rest = _strip_hindi_day_words(low)
+        tod = _detect_hindi_tod(rest)
+        rest = _strip_hindi_tod(rest)
+        rest = re.sub(r"^(?:at|ko|pe)\s+", "", rest).strip()
+        hm = _parse_hour_minute(rest) if rest else None
+        if hm is None:
+            hm = (9, 0)
+        hour = _apply_tod_to_hour(hm[0], tod) if not _has_ampm(rest) else hm[0]
+        target_date = base_date
+        dt = _make_utc(target_date, hour, hm[1], tz, now_utc)
+        if dt <= now_utc:
+            dt = _make_utc(target_date + timedelta(days=1), hour, hm[1], tz, now_utc, skip_past_check=True)
+        return dt
 
     # ── 3. Month + day: "May 5 at 2pm", "April 28 10:30am" ──────────
     md = _extract_month_day(low)
@@ -324,8 +458,22 @@ def parse_time(
         target_date = _get_next_month_day(base_date, day_num)
         return _make_utc(target_date, hm[0], hm[1], tz, now_utc)
 
-    # ── 6. Simple wall-clock: "7pm", "10:30am", "19:00" ──────────────
-    rest = re.sub(r"^at\s+", "", low)
+    # ── 6. Hindi time-of-day with bare number: "subah 7", "sham 5" ────
+    tod = _detect_hindi_tod(low)
+    if tod:
+        rest = _strip_hindi_tod(low)
+        rest = re.sub(r"^(?:at|ko|pe|ke)\s+", "", rest).strip()
+        hm = _parse_hour_minute(rest) if rest else None
+        if hm is not None:
+            hour = _apply_tod_to_hour(hm[0], tod) if not _has_ampm(rest) else hm[0]
+            target_date = base_date
+            dt = _make_utc(target_date, hour, hm[1], tz, now_utc)
+            if dt <= now_utc:
+                dt = _make_utc(target_date + timedelta(days=1), hour, hm[1], tz, now_utc, skip_past_check=True)
+            return dt
+
+    # ── 7. Simple wall-clock: "7pm", "10:30am", "19:00" ──────────────
+    rest = re.sub(r"^(?:at|ko|pe)\s+", "", low)
     hm = _parse_hour_minute(rest)
     if hm is not None:
         hour, minute = hm
