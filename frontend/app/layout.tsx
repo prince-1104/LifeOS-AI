@@ -30,6 +30,9 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Cortexa AI",
   },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({
@@ -42,7 +45,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, interactive-widget=resizes-content" />
+      </head>
+      <body className="h-full overflow-hidden">
         <ClerkProvider>{children}</ClerkProvider>
         <Analytics />
       </body>

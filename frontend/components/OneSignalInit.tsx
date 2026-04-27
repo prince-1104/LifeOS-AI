@@ -32,7 +32,11 @@ export default function OneSignalInit() {
       await OneSignal.init({
         appId: ONESIGNAL_APP_ID,
         allowLocalhostAsSecureOrigin: true,
-        notifyButton: { enable: true } as Parameters<typeof OneSignal.init>[0]["notifyButton"],
+        notifyButton: {
+          enable: true,
+          position: "bottom-left",
+          size: "small",
+        } as Parameters<typeof OneSignal.init>[0]["notifyButton"],
       });
 
       // Link this browser/device to the Clerk user ID

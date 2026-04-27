@@ -98,3 +98,58 @@ body {
     transform: translateX(100%);
   }
 }
+
+/* ── Mobile viewport stability ────────────────────────────────────── */
+html, body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent iOS Safari bottom bar from shifting layout */
+@supports (height: 100dvh) {
+  html {
+    height: 100dvh;
+  }
+}
+
+/* ── OneSignal bell icon: move to left + smaller on mobile ────────── */
+#onesignal-bell-container {
+  left: 16px !important;
+  right: auto !important;
+  bottom: 16px !important;
+}
+
+#onesignal-bell-container .onesignal-bell-launcher {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+#onesignal-bell-container .onesignal-bell-launcher-button {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+#onesignal-bell-container svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* On mobile, make even smaller */
+@media (max-width: 768px) {
+  #onesignal-bell-container {
+    left: 12px !important;
+    bottom: 12px !important;
+  }
+
+  #onesignal-bell-container .onesignal-bell-launcher,
+  #onesignal-bell-container .onesignal-bell-launcher-button {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  #onesignal-bell-container svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+}
+

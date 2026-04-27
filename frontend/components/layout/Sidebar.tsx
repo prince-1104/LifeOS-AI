@@ -94,7 +94,7 @@ export function Sidebar({
     <aside
       id="app-sidebar"
       className={[
-        "fixed inset-y-0 left-0 z-40 flex w-[min(100%,20rem)] flex-col border-r border-white/[0.06] bg-[var(--bg-sidebar)] transition-transform duration-200 md:static md:w-[20%] md:min-w-[240px] md:max-w-[320px] md:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 flex w-[75%] max-w-[18rem] flex-col border-r border-white/[0.06] bg-[var(--bg-sidebar)] transition-transform duration-200 md:static md:w-[20%] md:min-w-[240px] md:max-w-[320px] md:translate-x-0",
         mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
       ].join(" ")}
     >
