@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import type { PlanInfo } from "@/lib/api";
 
 /* ── Feature labels matching our backend plan gating ────────────────── */
@@ -195,31 +195,13 @@ function GroupCard({
     groupType: 'basic' | 'premium';
     onOpenModal: (plans: PlanInfo[], type: 'basic' | 'premium') => void;
 }) {
-    const hoverTimer = useRef<NodeJS.Timeout | null>(null);
-
-    const handleMouseEnter = () => {
-        hoverTimer.current = setTimeout(() => {
-            onOpenModal(subPlans, groupType);
-        }, 2000); // 2 second hover
-    };
-
-    const handleMouseLeave = () => {
-        if (hoverTimer.current) {
-            clearTimeout(hoverTimer.current);
-            hoverTimer.current = null;
-        }
-    };
-
     return (
         <div 
-            className="group relative flex flex-col rounded-3xl border border-white/[0.08] bg-[#111111]/80 p-7 transition-all duration-300 hover:border-white/[0.2] hover:bg-[#151515] hover:shadow-xl hover:shadow-white/[0.05] cursor-pointer"
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onTouchStart={() => onOpenModal(subPlans, groupType)} // Instant open on mobile tap
+            className="group relative flex flex-col rounded-3xl border border-white/[0.08] bg-[#111111]/80 p-7 transition-all duration-300 md:hover:border-white/[0.2] md:hover:bg-[#151515] md:hover:shadow-xl md:hover:shadow-white/[0.05] cursor-pointer active:scale-[0.98]"
             onClick={() => onOpenModal(subPlans, groupType)}
         >
             <div className="absolute top-4 right-4">
-               <svg className="w-5 h-5 text-zinc-600 transition-colors group-hover:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+               <svg className="w-5 h-5 text-zinc-600 transition-colors md:group-hover:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
             </div>
             <div className="text-center">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400">
@@ -242,9 +224,9 @@ function GroupCard({
                 </ul>
             </div>
              <button
-                className="mt-8 w-full rounded-2xl py-3.5 text-[15px] font-bold transition-all duration-300 border border-white/[0.1] bg-white/[0.05] text-white group-hover:bg-white/[0.1]"
+                className="mt-8 w-full rounded-2xl py-3.5 text-[15px] font-bold transition-all duration-300 border border-white/[0.1] bg-white/[0.05] text-white md:group-hover:bg-white/[0.1]"
               >
-                Expand Details
+                Tap to View Plans
               </button>
         </div>
     );

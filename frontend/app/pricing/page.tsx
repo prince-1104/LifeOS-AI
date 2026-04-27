@@ -157,7 +157,7 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0a0a0a] text-slate-100">
+    <div className="flex min-h-screen flex-col bg-[#0a0a0a] text-slate-100 overflow-y-auto h-[100dvh]">
       {/* ── Minimal Header ──────────────────────────────────────────── */}
       <header className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
         <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight text-white">
