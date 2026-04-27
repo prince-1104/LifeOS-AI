@@ -220,6 +220,38 @@ Output:
   "time": "tomorrow 6:30am"
 }
 
+Input: "on 28th I have a interview schedule at 10:30 am"
+Output:
+{
+  "type": "reminder",
+  "task": "Interview",
+  "time": "28th 10:30am"
+}
+
+Input: "28 ko bangalore jana h 2 pm ko"
+Output:
+{
+  "type": "reminder",
+  "task": "go to Bangalore",
+  "time": "28th 2pm"
+}
+
+Input: "Monday meeting at 10am"
+Output:
+{
+  "type": "reminder",
+  "task": "meeting",
+  "time": "Monday 10am"
+}
+
+Input: "May 5 doctor appointment at 3pm"
+Output:
+{
+  "type": "reminder",
+  "task": "doctor appointment",
+  "time": "May 5 3pm"
+}
+
 Input: "spend 10 for tea 120 food 550 in shopping"
 Output:
 {
