@@ -196,28 +196,14 @@ export function ChatBox() {
         aria-relevant="additions"
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-          {visibleRows.length === 0 ? (
+          {visibleRows.length === 0 && activeDateId !== generateDateId(Date.now()) ? (
             <div className="glass-panel mt-8 rounded-2xl px-6 py-8 text-center">
-              {activeDateId === generateDateId(Date.now()) ? (
-                <>
-                  <p className="text-lg font-medium tracking-tight text-white">
-                    Welcome to Cortexa AI
-                  </p>
-                  <p className="mt-2 text-sm text-zinc-400">
-                    Track spending, set reminders, and capture memories — then ask
-                    anything about your day.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-lg font-medium tracking-tight text-white">
-                    No chats found
-                  </p>
-                  <p className="mt-2 text-sm text-zinc-400">
-                    You have no history for this date.
-                  </p>
-                </>
-              )}
+              <p className="text-lg font-medium tracking-tight text-white">
+                No chats found
+              </p>
+              <p className="mt-2 text-sm text-zinc-400">
+                You have no history for this date.
+              </p>
             </div>
           ) : null}
           {visibleRows.map((row, index) => {

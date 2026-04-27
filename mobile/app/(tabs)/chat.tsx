@@ -301,35 +301,7 @@ export default function ChatScreen() {
         contentContainerStyle={styles.messageList}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => <MessageBubble row={item} />}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>💬</Text>
-            <Text style={styles.emptyTitle}>Welcome to Cortexa AI</Text>
-            <Text style={styles.emptySubtitle}>
-              Track spending, set reminders, and capture memories — then ask
-              anything about your day.
-            </Text>
-            <View style={styles.suggestionContainer}>
-              {[
-                "Spent 200 on food",
-                "Remind me to call mom at 5pm",
-                "Remember my wifi password is abc123",
-                "How much did I spend today?",
-              ].map((s) => (
-                <TouchableOpacity
-                  key={s}
-                  style={styles.suggestion}
-                  onPress={() => {
-                    setInput(s);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.suggestionText}>{s}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        }
+        ListEmptyComponent={null}
         ListFooterComponent={loading ? <TypingIndicator /> : null}
         onContentSizeChange={scrollToBottom}
       />
