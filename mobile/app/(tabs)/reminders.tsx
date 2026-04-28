@@ -175,11 +175,15 @@ export default function RemindersScreen() {
   const [reminders, setReminders] = useState<ReminderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<"all" | "pending" | "done">("all");
+
+  // Calendar state
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
 
   const fetchData = useCallback(
     async (showLoader = true) => {
       if (!isLoaded) return;
-      if (showLoader) setLoading(true);
+      if (showLoader && reminders.length === 0) setLoading(true);
       try {
         const items = await getReminders(getToken);
         setReminders(items);
@@ -190,7 +194,7 @@ export default function RemindersScreen() {
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken]
+    [isLoaded, getToken, reminders.length]
   );
 
   useEffect(() => {
@@ -252,7 +256,50 @@ export default function RemindersScreen() {
     [getToken]
   );
 
+  const filteredReminders = reminders.filter((r) => {
+    if (filter === "pending") return r.status === "pending";
+    if (filter === "done") return r.status === "done" || r.status === "fired";
+    return true;
+  });
+
   const pendingCount = reminders.filter((r) => r.status === "pending").length;
+  const doneCount = reminders.filter(
+    (r) => r.status === "done" || r.status === "fired"
+  ).length;
+
+  // ── Calendar helpers ─────────────────────────────────────────────
+  const reminderDates = new Set(
+    reminders.map((r) => {
+      const d = new Date(r.reminder_time);
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    })
+  );
+
+  const daysInMonth = new Date(
+    calendarMonth.getFullYear(),
+    calendarMonth.getMonth() + 1,
+    0
+  ).getDate();
+
+  const firstDayOfWeek = new Date(
+    calendarMonth.getFullYear(),
+    calendarMonth.getMonth(),
+    1
+  ).getDay();
+
+  const calendarDays = [];
+  for (let i = 0; i < firstDayOfWeek; i++) calendarDays.push(null);
+  for (let d = 1; d <= daysInMonth; d++) calendarDays.push(d);
+
+  const today = new Date();
+  const isCurrentMonth =
+    today.getFullYear() === calendarMonth.getFullYear() &&
+    today.getMonth() === calendarMonth.getMonth();
+
+  const monthLabel = calendarMonth.toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -269,7 +316,7 @@ export default function RemindersScreen() {
         </View>
       ) : (
         <FlatList
-          data={reminders}
+          data={filteredReminders}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -282,6 +329,123 @@ export default function RemindersScreen() {
               }}
               tintColor={Colors.accent}
             />
+          }
+          ListHeaderComponent={
+            <>
+              {/* ── Calendar ──────────────────────────────────── */}
+              <View style={styles.calendarCard}>
+                <View style={styles.calendarHeader}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setCalendarMonth(
+                        new Date(
+                          calendarMonth.getFullYear(),
+                          calendarMonth.getMonth() - 1,
+                          1
+                        )
+                      )
+                    }
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={20}
+                      color={Colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.calendarMonthText}>{monthLabel}</Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setCalendarMonth(
+                        new Date(
+                          calendarMonth.getFullYear(),
+                          calendarMonth.getMonth() + 1,
+                          1
+                        )
+                      )
+                    }
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={Colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Day labels */}
+                <View style={styles.calendarWeekRow}>
+                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                    <Text key={d} style={styles.calendarWeekLabel}>
+                      {d}
+                    </Text>
+                  ))}
+                </View>
+
+                {/* Calendar grid */}
+                <View style={styles.calendarGrid}>
+                  {calendarDays.map((day, i) => {
+                    if (day === null)
+                      return <View key={`empty-${i}`} style={styles.calendarCell} />;
+
+                    const dateKey = `${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}-${day}`;
+                    const hasReminder = reminderDates.has(dateKey);
+                    const isToday = isCurrentMonth && day === today.getDate();
+
+                    return (
+                      <View
+                        key={`day-${day}`}
+                        style={[
+                          styles.calendarCell,
+                          isToday && styles.calendarCellToday,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.calendarDayText,
+                            isToday && styles.calendarDayToday,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                        {hasReminder && <View style={styles.calendarDot} />}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* ── Filter tabs ──────────────────────────────── */}
+              <View style={styles.filterRow}>
+                {(
+                  [
+                    { key: "all", label: "All", count: reminders.length },
+                    { key: "pending", label: "Upcoming", count: pendingCount },
+                    { key: "done", label: "Completed", count: doneCount },
+                  ] as const
+                ).map((f) => (
+                  <TouchableOpacity
+                    key={f.key}
+                    onPress={() => setFilter(f.key)}
+                    style={[
+                      styles.filterChip,
+                      filter === f.key && styles.filterChipActive,
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        filter === f.key && styles.filterTextActive,
+                      ]}
+                    >
+                      {f.label} ({f.count})
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
           }
           renderItem={({ item }) => (
             <ReminderCard
@@ -297,7 +461,7 @@ export default function RemindersScreen() {
               <Text style={styles.emptyTitle}>No reminders</Text>
               <Text style={styles.emptyText}>
                 Tell Cortexa AI to remind you about anything, like "Remind me to call
-                mom at 5pm"
+                mom at 5pm" or "kal subah 7 baje meeting"
               </Text>
             </View>
           }
@@ -417,5 +581,94 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: Spacing.xxl,
     lineHeight: 20,
+  },
+
+  // Calendar
+  calendarCard: {
+    backgroundColor: Colors.bgElevated,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.glassBorder,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  calendarHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  calendarMonthText: {
+    fontSize: FontSize.md,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  calendarWeekRow: {
+    flexDirection: "row",
+    marginBottom: Spacing.sm,
+  },
+  calendarWeekLabel: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: FontSize.xs,
+    fontWeight: "600",
+    color: Colors.textDark,
+  },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  calendarCell: {
+    width: "14.28%",
+    alignItems: "center",
+    paddingVertical: 6,
+    position: "relative",
+  },
+  calendarCellToday: {
+    backgroundColor: "rgba(99,102,241,0.15)",
+    borderRadius: 8,
+  },
+  calendarDayText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
+  calendarDayToday: {
+    color: Colors.accent,
+    fontWeight: "700",
+  },
+  calendarDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.accent,
+    marginTop: 2,
+  },
+
+  // Filters
+  filterRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  filterChip: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.bgElevated,
+    borderWidth: 1,
+    borderColor: Colors.glassBorder,
+    alignItems: "center",
+  },
+  filterChipActive: {
+    backgroundColor: Colors.accent,
+    borderColor: Colors.accent,
+  },
+  filterText: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontWeight: "600",
+  },
+  filterTextActive: {
+    color: "#fff",
   },
 });

@@ -320,7 +320,7 @@ export default function ChatScreen() {
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              placeholder="Ask anything about your day..."
+              placeholder="Ask anything... Hindi bhi chalega!"
               placeholderTextColor={Colors.textMuted}
               value={input}
               onChangeText={setInput}

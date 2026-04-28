@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,14 +15,26 @@ import { useSignIn, useSSO, useClerk } from "@clerk/expo";
 import { useRouter, Link } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
 import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
 
 // Required for OAuth redirects in Expo
 WebBrowser.maybeCompleteAuthSession();
 
+// Preloads the browser for Android devices to reduce authentication load time
+// See: https://docs.expo.dev/guides/authentication/#improving-user-experience
+const useWarmUpBrowser = () => {
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    void WebBrowser.warmUpAsync();
+    return () => {
+      void WebBrowser.coolDownAsync();
+    };
+  }, []);
+};
+
 export default function SignInScreen() {
-  // @clerk/expo v3 / @clerk/react v6 new API:
-  //   useSignIn() → { signIn: { create(), password(), ... }, errors, fetchStatus }
-  //   setActive comes from useClerk()
+  useWarmUpBrowser();
+
   const { signIn } = useSignIn();
   const { startSSOFlow } = useSSO();
   const { setActive } = useClerk();
@@ -34,6 +46,11 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Client-trust verification state
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
   // ── Google SSO Sign In ──────────────────────────────────────────────
   const handleGoogleSignIn = useCallback(async () => {
     console.log("GOOGLE SIGN IN PRESSED");
@@ -41,8 +58,15 @@ export default function SignInScreen() {
     setGoogleLoading(true);
 
     try {
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: "cortexa",
+        path: "oauth-native-callback",
+      });
+      console.log("OAuth redirect URL:", redirectUrl);
+
       const { createdSessionId, setActive: ssoSetActive } = await startSSOFlow({
         strategy: "oauth_google",
+        redirectUrl,
       });
 
       console.log("SSO flow completed. Session:", createdSessionId);
@@ -74,7 +98,7 @@ export default function SignInScreen() {
     }
   }, [startSSOFlow, setActive, router]);
 
-  // ── Email / Password Sign In ────────────────────────────────────────
+  // ── Email / Password Sign In (Clerk v3 API) ────────────────────────
   const handleSignIn = useCallback(async () => {
     console.log("EMAIL SIGN IN PRESSED");
 
@@ -91,38 +115,200 @@ export default function SignInScreen() {
     setLoading(true);
 
     try {
-      // New @clerk/react v6 API:
-      //   signIn.create() is a gated method that auto-waits for Clerk to load
-      //   It returns a SignInResource with status + createdSessionId
-      const result = await signIn.create({
-        identifier: email.trim(),
+      // Clerk v3 / @clerk/expo v3 uses signIn.password() instead of signIn.create()
+      // signIn.create({identifier, password}) is LEGACY and returns needs_first_factor
+      const result = await (signIn as any).password({
+        emailAddress: email.trim(),
         password,
       });
 
-      console.log("Clerk response status:", result.status);
+      console.log("Clerk sign-in status:", (signIn as any).status);
 
-      if (result.status === "complete" && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
-        console.log("Email session activated. Navigating...");
-        router.replace("/(tabs)/chat");
+      const status = (signIn as any).status;
+
+      if (status === "complete") {
+        // Finalize and set session active
+        await (signIn as any).finalize({
+          navigate: ({ session }: any) => {
+            if (session?.currentTask) {
+              console.log("Session task:", session.currentTask);
+              return;
+            }
+            router.replace("/(tabs)/chat");
+          },
+        });
+      } else if (status === "needs_client_trust") {
+        // Client trust enabled — need email verification code
+        console.log("Needs client trust verification");
+        try {
+          const emailCodeFactor = (signIn as any).supportedSecondFactors?.find(
+            (f: any) => f.strategy === "email_code"
+          );
+          if (emailCodeFactor) {
+            await (signIn as any).mfa.sendEmailCode();
+          }
+        } catch (e) {
+          console.log("Failed to send verification code, may already be sent:", e);
+        }
+        setNeedsVerification(true);
+      } else if (status === "needs_second_factor") {
+        console.log("MFA required");
+        setError("Multi-factor authentication required. Please use the web app.");
       } else {
-        console.log("Login incomplete. Status:", result.status);
-        setError("Sign-in incomplete. Please verify your email.");
+        console.log("Unexpected status:", status);
+        setError(`Sign-in returned status: ${status}. Please try again.`);
       }
     } catch (err: any) {
       console.log("LOGIN ERROR:", JSON.stringify(err, null, 2));
-      setError(
-        err?.errors?.[0]?.longMessage ||
-          err?.errors?.[0]?.message ||
-          err?.message ||
-          "Sign-in failed. Please check your credentials."
-      );
+
+      // Fallback to legacy create() if password() doesn't exist
+      if (err?.message?.includes("password is not a function") ||
+          err?.message?.includes("signIn.password")) {
+        try {
+          const result = await (signIn as any).create({
+            identifier: email.trim(),
+            password,
+          });
+          console.log("Legacy Clerk response status:", result.status);
+
+          if (result.status === "complete" && result.createdSessionId) {
+            await setActive({ session: result.createdSessionId });
+            router.replace("/(tabs)/chat");
+            return;
+          } else if (result.status === "needs_first_factor") {
+            // Attempt first factor with password
+            const firstFactorResult = await (signIn as any).attemptFirstFactor({
+              strategy: "password",
+              password,
+            });
+            if (firstFactorResult.status === "complete" && firstFactorResult.createdSessionId) {
+              await setActive({ session: firstFactorResult.createdSessionId });
+              router.replace("/(tabs)/chat");
+              return;
+            }
+          }
+          setError("Sign-in incomplete. Status: " + result.status);
+        } catch (fallbackErr: any) {
+          console.log("FALLBACK LOGIN ERROR:", JSON.stringify(fallbackErr, null, 2));
+          setError(
+            fallbackErr?.errors?.[0]?.longMessage ||
+            fallbackErr?.errors?.[0]?.message ||
+            fallbackErr?.message ||
+            "Sign-in failed. Please check your credentials."
+          );
+        }
+      } else {
+        setError(
+          err?.errors?.[0]?.longMessage ||
+            err?.errors?.[0]?.message ||
+            err?.message ||
+            "Sign-in failed. Please check your credentials."
+        );
+      }
     } finally {
       setLoading(false);
     }
   }, [email, password, signIn, setActive, router]);
 
+  // ── Verify email code (client trust) ───────────────────────────────
+  const handleVerifyCode = useCallback(async () => {
+    if (!verificationCode.trim()) {
+      setError("Please enter the verification code.");
+      return;
+    }
+    setVerifying(true);
+    setError("");
+
+    try {
+      await (signIn as any).mfa.verifyEmailCode({ code: verificationCode.trim() });
+
+      if ((signIn as any).status === "complete") {
+        await (signIn as any).finalize({
+          navigate: ({ session }: any) => {
+            if (session?.currentTask) {
+              console.log("Session task:", session.currentTask);
+              return;
+            }
+            router.replace("/(tabs)/chat");
+          },
+        });
+      } else {
+        setError("Verification incomplete. Please try again.");
+      }
+    } catch (err: any) {
+      setError(
+        err?.errors?.[0]?.longMessage ||
+          err?.message ||
+          "Verification failed. Please check your code."
+      );
+    } finally {
+      setVerifying(false);
+    }
+  }, [verificationCode, signIn, router]);
+
   const isAnyLoading = loading || googleLoading;
+
+  // ── Verification Code Screen ───────────────────────────────────────
+  if (needsVerification) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.inner}>
+            <View style={styles.logoContainer}>
+              <Text style={styles.title}>Verify Your Account</Text>
+              <Text style={styles.subtitle}>
+                We sent a verification code to your email.
+              </Text>
+            </View>
+
+            <TextInput
+              style={styles.input}
+              value={verificationCode}
+              onChangeText={setVerificationCode}
+              placeholder="Enter verification code"
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="number-pad"
+              autoFocus
+            />
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={[styles.signInButton, verifying && styles.buttonDisabled]}
+              onPress={handleVerifyCode}
+              disabled={verifying}
+              activeOpacity={0.8}
+            >
+              {verifying ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.signInButtonText}>Verify</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setNeedsVerification(false);
+                setVerificationCode("");
+                setError("");
+              }}
+              style={{ paddingVertical: 12, alignItems: "center" }}
+            >
+              <Text style={{ color: Colors.accent, fontSize: FontSize.sm }}>
+                ← Back to Sign In
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -153,11 +339,11 @@ export default function SignInScreen() {
             activeOpacity={0.8}
           >
             {googleLoading ? (
-              <ActivityIndicator color={Colors.textPrimary} size="small" />
+              <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <View style={styles.googleButtonInner}>
+              <View style={styles.googleInner}>
                 <Text style={styles.googleIcon}>G</Text>
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
+                <Text style={styles.googleText}>Continue with Google</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -169,49 +355,55 @@ export default function SignInScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          {/* Email / Password Form */}
-          <View style={styles.form}>
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor={Colors.textMuted}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-              editable={!isAnyLoading}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor={Colors.textMuted}
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-              editable={!isAnyLoading}
-            />
+          {/* Email */}
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Email address"
+            placeholderTextColor={Colors.textMuted}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            editable={!isAnyLoading}
+          />
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+          {/* Password */}
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Password"
+            placeholderTextColor={Colors.textMuted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="password"
+            editable={!isAnyLoading}
+          />
 
-            <TouchableOpacity
-              style={[styles.button, isAnyLoading && styles.buttonDisabled]}
-              onPress={handleSignIn}
-              disabled={isAnyLoading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.buttonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          {/* Error */}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+          {/* Sign In Button */}
+          <TouchableOpacity
+            style={[styles.signInButton, isAnyLoading && styles.buttonDisabled]}
+            onPress={handleSignIn}
+            disabled={isAnyLoading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.signInButtonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Sign Up Link */}
+          <View style={styles.linkRow}>
+            <Text style={styles.linkText}>Don't have an account? </Text>
             <Link href="/(auth)/sign-up" asChild>
               <TouchableOpacity>
-                <Text style={styles.footerLink}>Sign Up</Text>
+                <Text style={styles.linkHighlight}>Sign Up</Text>
               </TouchableOpacity>
             </Link>
           </View>
@@ -222,28 +414,21 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bgDeep,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-  },
+  container: { flex: 1, backgroundColor: Colors.bgDeep },
+  scrollContent: { flexGrow: 1, justifyContent: "center" },
   inner: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: Spacing.xxl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.xxl,
+    gap: Spacing.lg,
   },
-  logoContainer: {
-    alignItems: "center",
-    marginBottom: 32,
-  },
+
+  // Logo
+  logoContainer: { alignItems: "center", marginBottom: Spacing.lg },
   heroImage: {
-    width: 200,
-    height: 114,
-    borderRadius: 16,
-    marginBottom: Spacing.lg,
+    width: 120,
+    height: 120,
+    borderRadius: Radius.lg,
+    marginBottom: Spacing.md,
   },
   title: {
     fontSize: FontSize.xxl,
@@ -254,53 +439,40 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: FontSize.sm,
     color: Colors.textMuted,
-    marginTop: Spacing.xs,
+    marginTop: 4,
   },
-  // Google SSO
+
+  // Google button
   googleButton: {
     backgroundColor: Colors.bgElevated,
     borderWidth: 1,
     borderColor: Colors.glassBorder,
     borderRadius: Radius.lg,
-    paddingVertical: 15,
+    paddingVertical: 16,
     alignItems: "center",
-    marginBottom: Spacing.md,
   },
-  googleButtonInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
+  googleInner: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
   googleIcon: {
-    fontSize: 20,
+    fontSize: FontSize.lg,
     fontWeight: "700",
     color: "#4285F4",
   },
-  googleButtonText: {
-    color: Colors.textPrimary,
+  googleText: {
     fontSize: FontSize.md,
     fontWeight: "600",
+    color: Colors.textPrimary,
   },
+
   // Divider
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.glassBorder,
-  },
-  dividerText: {
-    color: Colors.textMuted,
-    fontSize: FontSize.sm,
-    marginHorizontal: Spacing.md,
-  },
-  // Form
-  form: {
     gap: Spacing.md,
   },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.glassBorder },
+  dividerText: { fontSize: FontSize.sm, color: Colors.textDark },
+
+  // Input
   input: {
     backgroundColor: Colors.bgInput,
     borderWidth: 1,
@@ -311,43 +483,45 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.textPrimary,
   },
-  error: {
-    color: Colors.danger,
+
+  // Error
+  errorText: {
+    color: Colors.dangerLight || "#f87171",
     fontSize: FontSize.sm,
     textAlign: "center",
   },
-  button: {
+
+  // Sign in button
+  signInButton: {
     backgroundColor: Colors.accent,
     borderRadius: Radius.lg,
     paddingVertical: 16,
     alignItems: "center",
-    marginTop: Spacing.sm,
     shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 6,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
+  buttonDisabled: { opacity: 0.6 },
+  signInButtonText: {
     color: "#fff",
-    fontSize: FontSize.lg,
-    fontWeight: "600",
+    fontSize: FontSize.md,
+    fontWeight: "700",
   },
-  footer: {
+
+  // Link
+  linkRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: Spacing.xxl,
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
   },
-  footerText: {
-    color: Colors.textMuted,
+  linkText: { fontSize: FontSize.sm, color: Colors.textMuted },
+  linkHighlight: {
     fontSize: FontSize.sm,
-  },
-  footerLink: {
-    color: Colors.accentLight,
-    fontSize: FontSize.sm,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: Colors.accent,
+    textDecorationLine: "underline",
   },
 });

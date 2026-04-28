@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,11 +15,25 @@ import { useSignUp, useSSO, useClerk } from "@clerk/expo";
 import { useRouter, Link } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
 import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
 
 // Required for OAuth redirects in Expo
 WebBrowser.maybeCompleteAuthSession();
 
+// Preloads the browser for Android devices to reduce authentication load time
+const useWarmUpBrowser = () => {
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    void WebBrowser.warmUpAsync();
+    return () => {
+      void WebBrowser.coolDownAsync();
+    };
+  }, []);
+};
+
 export default function SignUpScreen() {
+  useWarmUpBrowser();
+
   // @clerk/expo v3 / @clerk/react v6 new API:
   //   useSignUp() → { signUp: { create(), emailCode: { sendCode(), verifyCode() }, ... }, errors, fetchStatus }
   //   setActive comes from useClerk()
@@ -43,8 +57,15 @@ export default function SignUpScreen() {
     setGoogleLoading(true);
 
     try {
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: "cortexa",
+        path: "oauth-native-callback",
+      });
+      console.log("OAuth redirect URL:", redirectUrl);
+
       const { createdSessionId, setActive: ssoSetActive } = await startSSOFlow({
         strategy: "oauth_google",
+        redirectUrl,
       });
 
       console.log("SSO flow completed. Session:", createdSessionId);
@@ -93,10 +114,14 @@ export default function SignUpScreen() {
     setLoading(true);
 
     try {
-      // New v6 API: signUp.create() is a gated method that auto-waits for Clerk
-      await signUp.create({ emailAddress: email.trim(), password });
+      // Clerk v3 API: signUp.password() for email+password registration
+      const result = await (signUp as any).password({ emailAddress: email.trim(), password });
+      if (result?.error) {
+        setError(result.error?.message || "Sign-up failed.");
+        return;
+      }
       // Send verification email
-      await signUp.emailCode.sendCode();
+      await (signUp as any).verifications.sendEmailCode();
       setPendingVerification(true);
       console.log("Verification email sent.");
     } catch (err: any) {
@@ -125,14 +150,20 @@ export default function SignUpScreen() {
     setLoading(true);
 
     try {
-      // New v6 API: signUp.emailCode.verifyCode()
-      const result = await signUp.emailCode.verifyCode({ code: code.trim() });
-      console.log("Verification result:", result.status);
+      // Clerk v3 API: signUp.verifications.verifyEmailCode()
+      await (signUp as any).verifications.verifyEmailCode({ code: code.trim() });
+      console.log("Verification result:", (signUp as any).status);
 
-      if (result.status === "complete" && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
-        console.log("Signup verified. Navigating...");
-        router.replace("/(tabs)/chat");
+      if ((signUp as any).status === "complete") {
+        await (signUp as any).finalize({
+          navigate: ({ session }: any) => {
+            if (session?.currentTask) {
+              console.log("Session task:", session.currentTask);
+              return;
+            }
+            router.replace("/(tabs)/chat");
+          },
+        });
       }
     } catch (err: any) {
       console.log("VERIFY ERROR:", JSON.stringify(err, null, 2));

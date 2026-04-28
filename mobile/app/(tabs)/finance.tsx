@@ -104,7 +104,8 @@ export default function FinanceScreen() {
   const fetchData = useCallback(
     async (showLoader = true) => {
       if (!isLoaded) return;
-      if (showLoader) setLoading(true);
+      // Only show full-screen loading on first load
+      if (showLoader && transactions.length === 0) setLoading(true);
       try {
         const items = await getTransactions(getToken);
         setTransactions(items);
@@ -115,7 +116,7 @@ export default function FinanceScreen() {
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken]
+    [isLoaded, getToken, transactions.length]
   );
 
   useEffect(() => {

@@ -93,16 +93,19 @@ export default function DashboardScreen() {
   const { getToken, isLoaded } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const [period, setPeriod] = useState("month");
+  const [period, setPeriod] = useState("day");
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(
     async (showLoader = true) => {
       if (!isLoaded) return;
-      if (showLoader) setLoading(true);
+      // Only show full-screen loading on first load (when no data yet)
+      if (showLoader && !data) setLoading(true);
+      if (showLoader && data) setSwitching(true);
       setError(null);
       try {
         const d = await getDashboard(getToken, period);
@@ -111,10 +114,11 @@ export default function DashboardScreen() {
         setError(e instanceof Error ? e.message : "Failed to load.");
       } finally {
         setLoading(false);
+        setSwitching(false);
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken, period]
+    [isLoaded, getToken, period, data]
   );
 
   useEffect(() => {
@@ -125,6 +129,7 @@ export default function DashboardScreen() {
     setRefreshing(true);
     fetchData(false);
   }, [fetchData]);
+
 
   // Prepare chart data
   const lineLabels =
@@ -167,16 +172,21 @@ export default function DashboardScreen() {
       >
         <PeriodPicker value={period} onChange={setPeriod} />
 
-        {loading ? (
+        {loading && !data ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.accent} />
           </View>
-        ) : error ? (
+        ) : error && !data ? (
           <View style={styles.errorCard}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : data ? (
-          <>
+          <View style={switching ? { opacity: 0.5 } : undefined}>
+            {switching && (
+              <View style={styles.switchingOverlay}>
+                <ActivityIndicator size="small" color={Colors.accent} />
+              </View>
+            )}
             {/* Stat Cards */}
             <View style={styles.statsRow}>
               <StatCard
@@ -190,6 +200,7 @@ export default function DashboardScreen() {
                 color={Colors.expense}
               />
             </View>
+            <View style={{ height: Spacing.lg }} />
             <StatCard
               title="Net Balance"
               value={
@@ -205,7 +216,7 @@ export default function DashboardScreen() {
 
             {/* Line Chart */}
             {lineValues.length > 0 && (
-              <View style={styles.chartCard}>
+              <View style={[styles.chartCard, { marginTop: Spacing.lg }]}>
                 <Text style={styles.chartTitle}>Last 7 Days</Text>
                 <LineChart
                   data={{
@@ -241,7 +252,7 @@ export default function DashboardScreen() {
 
             {/* Pie Chart */}
             {pieData.length > 0 && (
-              <View style={styles.chartCard}>
+              <View style={[styles.chartCard, { marginTop: Spacing.lg }]}>
                 <Text style={styles.chartTitle}>By Category</Text>
                 <PieChart
                   data={pieData}
@@ -259,7 +270,7 @@ export default function DashboardScreen() {
             )}
 
             {/* Recent Activity */}
-            <View style={styles.activityCard}>
+            <View style={[styles.activityCard, { marginTop: Spacing.lg }]}>
               <Text style={styles.chartTitle}>Recent Activity</Text>
               {data.recent_activity.length === 0 ? (
                 <Text style={styles.emptyText}>
@@ -287,7 +298,7 @@ export default function DashboardScreen() {
                 ))
               )}
             </View>
-          </>
+          </View>
         ) : null}
       </ScrollView>
     </View>
@@ -435,6 +446,15 @@ const styles = StyleSheet.create({
 
   // States
   loadingContainer: { paddingVertical: 80 },
+  switchingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    alignItems: "center",
+    paddingTop: 20,
+  },
   errorCard: {
     backgroundColor: Colors.bgElevated,
     borderRadius: Radius.xl,
