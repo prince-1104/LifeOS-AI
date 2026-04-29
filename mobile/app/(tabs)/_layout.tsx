@@ -15,7 +15,7 @@ const tabs: {
   { name: "chat", title: "Chat", icon: "chatbubble-ellipses", iconOutline: "chatbubble-ellipses-outline" },
   { name: "dashboard", title: "Dashboard", icon: "grid", iconOutline: "grid-outline" },
   { name: "finance", title: "Finance", icon: "wallet", iconOutline: "wallet-outline" },
-  { name: "reminders", title: "Reminders", icon: "alarm", iconOutline: "alarm-outline" },
+  { name: "reminders", title: "Calendar", icon: "calendar", iconOutline: "calendar-outline" },
   { name: "profile", title: "Profile", icon: "person-circle", iconOutline: "person-circle-outline" },
 ];
 

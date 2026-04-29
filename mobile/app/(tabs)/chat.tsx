@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -384,6 +384,42 @@ export default function ChatScreen() {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
+  // Auto-scroll when keyboard shows (fixes Android keyboard overlap)
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const sub = Keyboard.addListener(showEvent, () => {
+      scrollToBottom();
+    });
+    return () => sub.remove();
+  }, [scrollToBottom]);
+
+  // Shuffle suggestion texts on each mount/render
+  const allSuggestions = [
+    "☕ 30 rupees chai",
+    "⏰ Kal subah 7 baje uthna hai",
+    "🧠 My WiFi password is home123",
+    "💰 Show today's expenses",
+    "🍕 200 rupees pizza",
+    "📝 Meeting at 3pm tomorrow",
+    "🏠 Rent is 15000 per month",
+    "🚕 Auto rickshaw 50 rupees",
+    "💊 Medicine leni hai 6 baje",
+    "📞 Call dentist at 11am",
+    "🛒 Grocery list: milk, bread, eggs",
+    "💳 Credit card bill 5000",
+    "🎂 Rahul ka birthday 15 May",
+    "🏋️ Gym membership 2000 rupees",
+    "📚 Return library book by Friday",
+  ];
+  const shuffledSuggestions = useMemo(() => {
+    const arr = [...allSuggestions];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr.slice(0, 4);
+  }, []);
+
   const send = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
@@ -439,68 +475,66 @@ export default function ChatScreen() {
   }, [input, loading, getToken]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Animated background */}
-      <FloatingOrbsBackground />
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+    >
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        {/* Animated background */}
+        <FloatingOrbsBackground />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Cortexa AI</Text>
-        <Text style={styles.headerSubtitle}>
-          {user?.firstName ? `Hey, ${user.firstName}` : "Your day, understood."}
-        </Text>
-      </View>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Cortexa AI</Text>
+          <Text style={styles.headerSubtitle}>
+            {user?.firstName ? `Hey, ${user.firstName}` : "Your day, understood."}
+          </Text>
+        </View>
 
-      {/* Messages */}
-      <FlatList
-        ref={flatListRef}
-        data={rows}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[
-          styles.messageList,
-          rows.length === 0 && { flex: 1, justifyContent: "center" },
-        ]}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => <MessageBubble row={item} />}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>💬</Text>
-            <Text style={styles.emptyTitle}>
-              {user?.firstName ? `Hi ${user.firstName}!` : "Welcome!"}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              Track expenses, set reminders, save memories — in English or Hindi.
-            </Text>
-            <View style={styles.suggestionContainer}>
-              {[
-                "☕ 30 rupees chai",
-                "⏰ Kal subah 7 baje uthna hai",
-                "🧠 My WiFi password is home123",
-                "💰 Show today's expenses",
-              ].map((s) => (
-                <TouchableOpacity
-                  key={s}
-                  style={styles.suggestion}
-                  onPress={() => {
-                    setInput(s.substring(2).trim());
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.suggestionText}>{s}</Text>
-                </TouchableOpacity>
-              ))}
+        {/* Messages */}
+        <FlatList
+          ref={flatListRef}
+          data={rows}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[
+            styles.messageList,
+            rows.length === 0 && { flex: 1, justifyContent: "center" },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          renderItem={({ item }) => <MessageBubble row={item} />}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>💬</Text>
+              <Text style={styles.emptyTitle}>
+                {user?.firstName ? `Hi ${user.firstName}!` : "Welcome!"}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                Track expenses, set reminders, save memories — in English or Hindi.
+              </Text>
+              <View style={styles.suggestionContainer}>
+                {shuffledSuggestions.map((s) => (
+                  <TouchableOpacity
+                    key={s}
+                    style={styles.suggestion}
+                    onPress={() => {
+                      setInput(s.substring(2).trim());
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.suggestionText}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
-          </View>
-        }
-        ListFooterComponent={loading ? <TypingIndicator /> : null}
-        onContentSizeChange={scrollToBottom}
-      />
+          }
+          ListFooterComponent={loading ? <TypingIndicator /> : null}
+          onContentSizeChange={scrollToBottom}
+        />
 
-      {/* Input Bar */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
+        {/* Input Bar */}
         <View
           style={[
             styles.inputBar,
@@ -532,8 +566,8 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
