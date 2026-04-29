@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -68,13 +68,15 @@ export default function MemoriesScreen() {
   const [memories, setMemories] = useState<MemoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
 
   const fetchData = useCallback(
     async (showLoader = true) => {
       if (!isLoaded) return;
       if (showLoader) setLoading(true);
       try {
-        const items = await getMemories(getToken);
+        const items = await getMemories(getTokenRef.current);
         setMemories(items);
       } catch {
         // silent
@@ -83,7 +85,7 @@ export default function MemoriesScreen() {
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken]
+    [isLoaded]
   );
 
   useEffect(() => {

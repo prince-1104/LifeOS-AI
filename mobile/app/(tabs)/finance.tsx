@@ -100,15 +100,16 @@ export default function FinanceScreen() {
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const hasDataRef = useRef(false);
 
   const fetchData = useCallback(
     async (showLoader = true) => {
       if (!isLoaded) return;
-      // Only show full-screen loading on first load
       if (showLoader && !hasDataRef.current) setLoading(true);
       try {
-        const items = await getTransactions(getToken);
+        const items = await getTransactions(getTokenRef.current);
         setTransactions(items);
         hasDataRef.current = true;
       } catch {
@@ -118,7 +119,7 @@ export default function FinanceScreen() {
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken]
+    [isLoaded]
   );
 
   useEffect(() => {

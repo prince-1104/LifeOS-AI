@@ -180,6 +180,8 @@ export default function RemindersScreen() {
   // Calendar state
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const hasDataRef = useRef(false);
 
   const fetchData = useCallback(
@@ -187,7 +189,7 @@ export default function RemindersScreen() {
       if (!isLoaded) return;
       if (showLoader && !hasDataRef.current) setLoading(true);
       try {
-        const items = await getReminders(getToken);
+        const items = await getReminders(getTokenRef.current);
         setReminders(items);
         hasDataRef.current = true;
       } catch {
@@ -197,7 +199,7 @@ export default function RemindersScreen() {
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken]
+    [isLoaded]
   );
 
   useEffect(() => {

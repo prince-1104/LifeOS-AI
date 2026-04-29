@@ -99,17 +99,21 @@ export default function DashboardScreen() {
   const [switching, setSwitching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Refs to avoid dependency churn — getToken is unstable (new ref every render)
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const hasDataRef = useRef(false);
 
+  // Stable fetch function — no deps that change every render
   const fetchData = useCallback(
-    async (showLoader = true) => {
+    async (targetPeriod: string, showLoader = true) => {
       if (!isLoaded) return;
-      // Only show full-screen loading on first load (when no data yet)
       if (showLoader && !hasDataRef.current) setLoading(true);
       if (showLoader && hasDataRef.current) setSwitching(true);
       setError(null);
       try {
-        const d = await getDashboard(getToken, period);
+        const d = await getDashboard(getTokenRef.current, targetPeriod);
         setData(d);
         hasDataRef.current = true;
       } catch (e) {
@@ -120,17 +124,18 @@ export default function DashboardScreen() {
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken, period]
+    [isLoaded]
   );
 
+  // Fetch when period changes or on first load
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchData(period);
+  }, [period, fetchData]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchData(false);
-  }, [fetchData]);
+    fetchData(period, false);
+  }, [period, fetchData]);
 
 
   // Prepare chart data
