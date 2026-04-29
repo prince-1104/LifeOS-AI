@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/Theme";
 import { Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -19,6 +20,11 @@ const tabs: {
 ];
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  // On Android, insets.bottom accounts for the system nav bar (gesture bar / 3-button nav)
+  const bottomPad = Platform.OS === "ios" ? Math.max(insets.bottom, 16) : Math.max(insets.bottom, 6);
+  const tabBarHeight = Platform.OS === "ios" ? 56 + bottomPad : 56 + bottomPad;
+
   return (
     <Tabs
       screenOptions={{
@@ -27,9 +33,9 @@ export default function TabsLayout() {
           backgroundColor: Colors.tabBg,
           borderTopColor: Colors.glassBorder,
           borderTopWidth: 1,
-          height: Platform.OS === "ios" ? 88 : 72,
-          paddingBottom: Platform.OS === "ios" ? 28 : 12,
-          paddingTop: 8,
+          height: tabBarHeight,
+          paddingBottom: bottomPad,
+          paddingTop: 6,
           elevation: 8,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -4 },
