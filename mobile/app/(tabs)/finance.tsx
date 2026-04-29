@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -100,15 +100,17 @@ export default function FinanceScreen() {
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const hasDataRef = useRef(false);
 
   const fetchData = useCallback(
     async (showLoader = true) => {
       if (!isLoaded) return;
       // Only show full-screen loading on first load
-      if (showLoader && transactions.length === 0) setLoading(true);
+      if (showLoader && !hasDataRef.current) setLoading(true);
       try {
         const items = await getTransactions(getToken);
         setTransactions(items);
+        hasDataRef.current = true;
       } catch {
         // silent
       } finally {
@@ -116,7 +118,7 @@ export default function FinanceScreen() {
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken, transactions.length]
+    [isLoaded, getToken]
   );
 
   useEffect(() => {

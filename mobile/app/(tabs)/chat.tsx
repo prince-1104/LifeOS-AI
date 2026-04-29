@@ -59,10 +59,38 @@ function getTypeColor(type: string): string {
   }
 }
 
+// ── Typewriter Animation ────────────────────────────────────────────────
+function TypewriterText({ text, style, speed = 18 }: { text: string; style?: any; speed?: number }) {
+  const [displayedText, setDisplayedText] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!text) return;
+    let idx = 0;
+    setDisplayedText("");
+    setDone(false);
+    const timer = setInterval(() => {
+      idx++;
+      if (idx >= text.length) {
+        setDisplayedText(text);
+        setDone(true);
+        clearInterval(timer);
+      } else {
+        setDisplayedText(text.substring(0, idx));
+      }
+    }, speed);
+    return () => clearInterval(timer);
+  }, [text, speed]);
+
+  return <Text style={style}>{done ? text : displayedText}▍</Text>;
+}
+
 // ── Message Bubble ──────────────────────────────────────────────────────
 function MessageBubble({ row }: { row: ChatRow }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(8)).current;
+  // Messages created in last 2 seconds get typewriter effect
+  const isNew = useRef(Date.now() - row.timestamp < 2000).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -109,7 +137,11 @@ function MessageBubble({ row }: { row: ChatRow }) {
           {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
         </Text>
       </View>
-      <Text style={styles.assistantText}>{a.response}</Text>
+      {isNew ? (
+        <TypewriterText text={a.response} style={styles.assistantText} />
+      ) : (
+        <Text style={styles.assistantText}>{a.response}</Text>
+      )}
 
       {/* Finance data card */}
       {a.type === "finance" && a.data && (
@@ -298,10 +330,42 @@ export default function ChatScreen() {
         ref={flatListRef}
         data={rows}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messageList}
+        contentContainerStyle={[
+          styles.messageList,
+          rows.length === 0 && { flex: 1, justifyContent: "center" },
+        ]}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => <MessageBubble row={item} />}
-        ListEmptyComponent={null}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>💬</Text>
+            <Text style={styles.emptyTitle}>
+              {user?.firstName ? `Hi ${user.firstName}!` : "Welcome!"}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              Track expenses, set reminders, save memories — in English or Hindi.
+            </Text>
+            <View style={styles.suggestionContainer}>
+              {[
+                "☕ 30 rupees chai",
+                "⏰ Kal subah 7 baje uthna hai",
+                "🧠 My WiFi password is home123",
+                "💰 Show today's expenses",
+              ].map((s) => (
+                <TouchableOpacity
+                  key={s}
+                  style={styles.suggestion}
+                  onPress={() => {
+                    setInput(s.substring(2).trim());
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.suggestionText}>{s}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        }
         ListFooterComponent={loading ? <TypingIndicator /> : null}
         onContentSizeChange={scrollToBottom}
       />

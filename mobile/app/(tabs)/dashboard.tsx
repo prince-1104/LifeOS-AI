@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -99,17 +99,19 @@ export default function DashboardScreen() {
   const [switching, setSwitching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasDataRef = useRef(false);
 
   const fetchData = useCallback(
     async (showLoader = true) => {
       if (!isLoaded) return;
       // Only show full-screen loading on first load (when no data yet)
-      if (showLoader && !data) setLoading(true);
-      if (showLoader && data) setSwitching(true);
+      if (showLoader && !hasDataRef.current) setLoading(true);
+      if (showLoader && hasDataRef.current) setSwitching(true);
       setError(null);
       try {
         const d = await getDashboard(getToken, period);
         setData(d);
+        hasDataRef.current = true;
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load.");
       } finally {
@@ -118,7 +120,7 @@ export default function DashboardScreen() {
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken, period, data]
+    [isLoaded, getToken, period]
   );
 
   useEffect(() => {

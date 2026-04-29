@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -179,14 +179,17 @@ export default function RemindersScreen() {
 
   // Calendar state
   const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const hasDataRef = useRef(false);
 
   const fetchData = useCallback(
     async (showLoader = true) => {
       if (!isLoaded) return;
-      if (showLoader && reminders.length === 0) setLoading(true);
+      if (showLoader && !hasDataRef.current) setLoading(true);
       try {
         const items = await getReminders(getToken);
         setReminders(items);
+        hasDataRef.current = true;
       } catch {
         // silent
       } finally {
@@ -194,7 +197,7 @@ export default function RemindersScreen() {
         setRefreshing(false);
       }
     },
-    [isLoaded, getToken, reminders.length]
+    [isLoaded, getToken]
   );
 
   useEffect(() => {
@@ -256,9 +259,17 @@ export default function RemindersScreen() {
     [getToken]
   );
 
+  // Apply both tab filter and date filter
   const filteredReminders = reminders.filter((r) => {
-    if (filter === "pending") return r.status === "pending";
-    if (filter === "done") return r.status === "done" || r.status === "fired";
+    // Tab filter
+    if (filter === "pending" && r.status !== "pending") return false;
+    if (filter === "done" && r.status !== "done" && r.status !== "fired") return false;
+    // Date filter (from calendar click)
+    if (selectedDate) {
+      const d = new Date(r.reminder_time);
+      const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (dateKey !== selectedDate) return false;
+    }
     return true;
   });
 
@@ -287,7 +298,7 @@ export default function RemindersScreen() {
     1
   ).getDay();
 
-  const calendarDays = [];
+  const calendarDays: (number | null)[] = [];
   for (let i = 0; i < firstDayOfWeek; i++) calendarDays.push(null);
   for (let d = 1; d <= daysInMonth; d++) calendarDays.push(d);
 
@@ -392,28 +403,53 @@ export default function RemindersScreen() {
                     const dateKey = `${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}-${day}`;
                     const hasReminder = reminderDates.has(dateKey);
                     const isToday = isCurrentMonth && day === today.getDate();
+                    const isSelected = selectedDate === dateKey;
 
                     return (
-                      <View
+                      <TouchableOpacity
                         key={`day-${day}`}
                         style={[
                           styles.calendarCell,
                           isToday && styles.calendarCellToday,
+                          isSelected && styles.calendarCellSelected,
                         ]}
+                        onPress={() => {
+                          if (isSelected) {
+                            setSelectedDate(null);
+                          } else {
+                            setSelectedDate(dateKey);
+                          }
+                        }}
+                        activeOpacity={0.6}
                       >
                         <Text
                           style={[
                             styles.calendarDayText,
                             isToday && styles.calendarDayToday,
+                            isSelected && styles.calendarDaySelected,
                           ]}
                         >
                           {day}
                         </Text>
-                        {hasReminder && <View style={styles.calendarDot} />}
-                      </View>
+                        {hasReminder && <View style={[styles.calendarDot, isSelected && { backgroundColor: '#fff' }]} />}
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
+
+                {/* Show selected date indicator */}
+                {selectedDate && (
+                  <TouchableOpacity
+                    onPress={() => setSelectedDate(null)}
+                    style={styles.clearDateBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="close-circle" size={14} color={Colors.accent} />
+                    <Text style={styles.clearDateText}>
+                      Showing {selectedDate.split('-')[2]} {monthLabel.split(' ')[0]} only — tap to clear
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* ── Filter tabs ──────────────────────────────── */}
@@ -628,6 +664,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(99,102,241,0.15)",
     borderRadius: 8,
   },
+  calendarCellSelected: {
+    backgroundColor: Colors.accent,
+    borderRadius: 8,
+  },
   calendarDayText: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
@@ -636,12 +676,27 @@ const styles = StyleSheet.create({
     color: Colors.accent,
     fontWeight: "700",
   },
+  calendarDaySelected: {
+    color: "#fff",
+    fontWeight: "700",
+  },
   calendarDot: {
     width: 5,
     height: 5,
     borderRadius: 3,
     backgroundColor: Colors.accent,
     marginTop: 2,
+  },
+  clearDateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: Spacing.sm,
+    paddingVertical: 6,
+  },
+  clearDateText: {
+    fontSize: FontSize.xs,
+    color: Colors.accent,
   },
 
   // Filters
