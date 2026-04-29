@@ -10,12 +10,135 @@ import {
   Platform,
   Animated,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
 import { processInput, type ProcessResponse, type ProcessType } from "@/lib/api";
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+
+// ── Floating Orbs Background ────────────────────────────────────────────
+type Orb = {
+  x: Animated.Value;
+  y: Animated.Value;
+  scale: Animated.Value;
+  opacity: Animated.Value;
+  size: number;
+  color: string;
+};
+
+function FloatingOrbsBackground() {
+  const orbsRef = useRef<Orb[]>([]);
+
+  if (orbsRef.current.length === 0) {
+    const colors = [
+      "rgba(99,102,241,0.12)",  // indigo
+      "rgba(139,92,246,0.10)",  // violet
+      "rgba(59,130,246,0.08)",  // blue
+      "rgba(168,85,247,0.09)",  // purple
+      "rgba(99,102,241,0.06)",  // faint indigo
+    ];
+    orbsRef.current = Array.from({ length: 6 }, (_, i) => ({
+      x: new Animated.Value(Math.random() * SCREEN_W),
+      y: new Animated.Value(Math.random() * SCREEN_H),
+      scale: new Animated.Value(0.6 + Math.random() * 0.4),
+      opacity: new Animated.Value(0.3 + Math.random() * 0.4),
+      size: 80 + Math.random() * 160,
+      color: colors[i % colors.length],
+    }));
+  }
+
+  useEffect(() => {
+    const animations = orbsRef.current.map((orb) => {
+      const drift = (val: Animated.Value, min: number, max: number) => {
+        const to = min + Math.random() * (max - min);
+        return Animated.timing(val, {
+          toValue: to,
+          duration: 6000 + Math.random() * 8000,
+          useNativeDriver: true,
+        });
+      };
+
+      const pulse = () =>
+        Animated.sequence([
+          Animated.timing(orb.opacity, {
+            toValue: 0.15 + Math.random() * 0.35,
+            duration: 3000 + Math.random() * 4000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(orb.opacity, {
+            toValue: 0.1 + Math.random() * 0.2,
+            duration: 3000 + Math.random() * 4000,
+            useNativeDriver: true,
+          }),
+        ]);
+
+      const loopDrift = () => {
+        Animated.parallel([
+          drift(orb.x, -orb.size * 0.5, SCREEN_W - orb.size * 0.5),
+          drift(orb.y, -orb.size * 0.5, SCREEN_H - orb.size * 0.5),
+          pulse(),
+          Animated.timing(orb.scale, {
+            toValue: 0.5 + Math.random() * 0.5,
+            duration: 5000 + Math.random() * 5000,
+            useNativeDriver: true,
+          }),
+        ]).start(() => loopDrift());
+      };
+
+      loopDrift();
+      return () => {};
+    });
+
+    return () => {
+      orbsRef.current.forEach((orb) => {
+        orb.x.stopAnimation();
+        orb.y.stopAnimation();
+        orb.scale.stopAnimation();
+        orb.opacity.stopAnimation();
+      });
+    };
+  }, []);
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {orbsRef.current.map((orb, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: "absolute",
+            width: orb.size,
+            height: orb.size,
+            borderRadius: orb.size / 2,
+            backgroundColor: orb.color,
+            transform: [
+              { translateX: orb.x },
+              { translateY: orb.y },
+              { scale: orb.scale },
+            ],
+            opacity: orb.opacity,
+          }}
+        />
+      ))}
+      {/* Subtle radial gradient overlay */}
+      <View
+        style={{
+          ...StyleSheet.absoluteFillObject,
+          backgroundColor: "transparent",
+          borderWidth: 0,
+          // Top glow
+          shadowColor: "#6366f1",
+          shadowOffset: { width: 0, height: -100 },
+          shadowOpacity: 0.03,
+          shadowRadius: 120,
+        }}
+      />
+    </View>
+  );
+}
 
 // ── Types ───────────────────────────────────────────────────────────────
 type ChatRow = {
@@ -317,6 +440,9 @@ export default function ChatScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Animated background */}
+      <FloatingOrbsBackground />
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Cortexa AI</Text>
