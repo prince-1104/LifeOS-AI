@@ -673,12 +673,25 @@ async def verify_order(
     print(f"[VERIFY] User {user_id} verifying order {order_id}", flush=True)
     print(f"[VERIFY] DB state: plan={user.plan}, stripe_sub_id={user.stripe_subscription_id}, stripe_cust_id={user.stripe_customer_id}", flush=True)
 
-    # Check if plan is already activated (avoid redundant API calls)
-    if user.plan and user.plan != "free" and user.plan_end_date:
+    # Check if this specific order was already processed (avoid redundant API calls).
+    # IMPORTANT: Only skip if ALL of these are true:
+    #   1. The order being verified matches the stored order
+    #   2. The plan is non-free and not expired
+    #   3. The current plan matches what was requested (not mid-upgrade)
+    # When upgrading, create_subscription updates stripe_subscription_id and stripe_customer_id
+    # to the new order/plan, but user.plan still holds the OLD plan until verification.
+    stored_plan_intent = ""
+    if user.stripe_customer_id and ":" in user.stripe_customer_id:
+        stored_plan_intent = user.stripe_customer_id.split(":", 1)[0]
+
+    plan_matches_intent = (not stored_plan_intent) or (user.plan == stored_plan_intent)
+
+    if (user.plan and user.plan != "free" and user.plan_end_date
+            and user.stripe_subscription_id == order_id and plan_matches_intent):
         try:
             if user.plan_end_date.replace(tzinfo=timezone.utc if user.plan_end_date.tzinfo is None else user.plan_end_date.tzinfo) > datetime.now(timezone.utc):
                 plan_config = get_plan(user.plan)
-                print(f"[VERIFY] Plan already active: {user.plan}", flush=True)
+                print(f"[VERIFY] Plan already active for this order: {user.plan} (order: {order_id})", flush=True)
                 return VerifyOrderResponse(
                     status="PAID",
                     plan_activated=True,

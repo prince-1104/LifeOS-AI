@@ -116,15 +116,17 @@ export default function BillingPage() {
           const orderId = orderIdFromUrl || data.cashfree_subscription_id;
 
           if (orderId) {
-            // Check if plan is already active (webhook may have beaten us)
+            // Only skip verification if this exact order was already processed.
+            // If orderId differs from stored cashfree_subscription_id, user is upgrading — must verify.
+            const isSameOrder = orderId === data.cashfree_subscription_id;
             const isAlreadyPaid =
-              data.plan.price_inr_monthly > 0 && data.is_active;
+              isSameOrder && data.plan.price_inr_monthly > 0 && data.is_active;
 
             if (isAlreadyPaid) {
               setPaymentSuccess(true);
               setVerifyMessage("✅ Your plan is active!");
             } else {
-              // Need to verify — webhook hasn't fired yet
+              // Need to verify — either webhook hasn't fired or this is an upgrade
               verifyAttemptRef.current += 1;
               if (verifyAttemptRef.current <= 1) {
                 // Small delay to give webhook a chance to process first
