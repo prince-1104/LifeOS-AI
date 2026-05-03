@@ -10,7 +10,7 @@ import {
   Fragment,
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { processInput, getSubscriptionStatus, type ProcessResponse } from "@/lib/api";
+import { processInput, getSubscriptionStatus, voiceProcess, speakText, type ProcessResponse, type VoiceProcessResponse } from "@/lib/api";
 import {
   loadChatHistory,
   saveChatHistory,
@@ -45,6 +45,12 @@ export function ChatBox() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [maxChars, setMaxChars] = useState(100); // default to free plan limit
+  const [voiceState, setVoiceState] = useState<"idle" | "recording" | "processing" | "playing">("idle");
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -167,6 +173,118 @@ export function ChatBox() {
     }
   }, [input, session.userId, loading, userLoaded, getToken, maxChars]);
 
+  // ── Voice recording via MediaRecorder ─────────────────────────────
+  const startVoiceRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setVoiceState("recording");
+      setRecordingDuration(0);
+      durationTimerRef.current = setInterval(() => setRecordingDuration((d) => d + 1), 1000);
+    } catch {
+      alert("Microphone access denied. Please allow microphone permissions.");
+    }
+  }, []);
+
+  const stopVoiceRecording = useCallback(async () => {
+    if (durationTimerRef.current) {
+      clearInterval(durationTimerRef.current);
+      durationTimerRef.current = null;
+    }
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      setVoiceState("idle");
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      recorder.onstop = async () => {
+        recorder.stream.getTracks().forEach((t) => t.stop());
+        mediaRecorderRef.current = null;
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        audioChunksRef.current = [];
+
+        if (blob.size < 100) {
+          setVoiceState("idle");
+          resolve();
+          return;
+        }
+
+        setVoiceState("processing");
+        setLoading(true);
+
+        try {
+          const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+          const result = await voiceProcess(getToken, blob, { userTimezone: tz, tts: true });
+
+          const userMsg: ChatRow = {
+            id: crypto.randomUUID(),
+            role: "user",
+            text: `🎙️ ${result.transcript}`,
+            timestamp: Date.now(),
+          };
+          const assistantRow: ChatRow = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            assistant: { success: result.success, type: result.type, response: result.response, data: result.data },
+            timestamp: Date.now(),
+          };
+          setSession((s) => ({ ...s, rows: [...s.rows, userMsg, assistantRow] }));
+          scrollToBottom();
+
+          // Auto-play TTS
+          if (result.audio_base64) {
+            setVoiceState("playing");
+            const audio = new Audio(`data:audio/mp3;base64,${result.audio_base64}`);
+            audioPlayerRef.current = audio;
+            audio.onended = () => { setVoiceState("idle"); audioPlayerRef.current = null; };
+            audio.play().catch(() => setVoiceState("idle"));
+          } else {
+            setVoiceState("idle");
+          }
+        } catch {
+          setVoiceState("idle");
+        } finally {
+          setLoading(false);
+        }
+        resolve();
+      };
+      recorder.stop();
+    });
+  }, [getToken, scrollToBottom]);
+
+  const cancelVoiceRecording = useCallback(() => {
+    if (durationTimerRef.current) {
+      clearInterval(durationTimerRef.current);
+      durationTimerRef.current = null;
+    }
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stream.getTracks().forEach((t) => t.stop());
+      recorder.stop();
+    }
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    setVoiceState("idle");
+    setRecordingDuration(0);
+  }, []);
+
+  const handleMicClick = useCallback(() => {
+    if (voiceState === "idle") startVoiceRecording();
+    else if (voiceState === "recording") stopVoiceRecording();
+    else if (voiceState === "playing") {
+      audioPlayerRef.current?.pause();
+      audioPlayerRef.current = null;
+      setVoiceState("idle");
+    }
+  }, [voiceState, startVoiceRecording, stopVoiceRecording]);
+
   const { rows, userId } = session;
   const activeDateId = searchParams?.get("date") || generateDateId(Date.now());
   const visibleRows = rows.filter((r) => generateDateId(r.timestamp) === activeDateId);
@@ -271,12 +389,26 @@ export function ChatBox() {
             <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
               <button
                 type="button"
-                className="rounded-full p-2 text-slate-500 hover:bg-white/5 hover:text-slate-300"
-                aria-label="Voice input (coming soon)"
-                disabled
+                className={`rounded-full p-2 transition ${
+                  voiceState === "recording"
+                    ? "animate-pulse bg-rose-500 text-white shadow-lg shadow-rose-500/40"
+                    : voiceState === "processing"
+                      ? "bg-indigo-500/20 text-indigo-400 animate-spin-slow"
+                      : voiceState === "playing"
+                        ? "bg-indigo-500/20 text-indigo-400"
+                        : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
+                }`}
+                aria-label={voiceState === "recording" ? "Stop recording" : voiceState === "playing" ? "Stop playback" : "Voice input"}
+                onClick={handleMicClick}
+                disabled={loading && voiceState === "idle"}
               >
-                <MicIcon />
+                {voiceState === "recording" ? <StopIcon /> : voiceState === "playing" ? <SpeakerIcon /> : <MicIcon />}
               </button>
+              {voiceState === "recording" && (
+                <span className="text-xs font-medium text-rose-400 tabular-nums min-w-[36px]">
+                  {Math.floor(recordingDuration / 60).toString().padStart(2, "0")}:{(recordingDuration % 60).toString().padStart(2, "0")}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => void send()}
@@ -390,3 +522,24 @@ function MicIcon() {
   );
 }
 
+function StopIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SpeakerIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

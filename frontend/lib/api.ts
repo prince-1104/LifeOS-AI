@@ -388,3 +388,61 @@ export async function verifyOrder(
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<VerifyOrderResponse>;
 }
+
+// ── Voice API ───────────────────────────────────────────────────────────
+
+export type VoiceProcessResponse = {
+  success: boolean;
+  transcript: string;
+  response: string;
+  type: string;
+  data: ProcessData;
+  audio_base64: string | null;
+};
+
+/**
+ * Full voice pipeline: send audio blob → backend transcribes → processes → returns text + TTS.
+ */
+export async function voiceProcess(
+  getToken: GetToken,
+  audioBlob: Blob,
+  opts?: { userTimezone?: string; voice?: string; tts?: boolean },
+): Promise<VoiceProcessResponse> {
+  const authHeaders = await bearerAuth(getToken);
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "recording.webm");
+  if (opts?.userTimezone) formData.append("user_timezone", opts.userTimezone);
+  if (opts?.voice) formData.append("voice", opts.voice);
+  formData.append("tts", opts?.tts !== false ? "true" : "false");
+
+  const res = await fetch(`${base()}/voice/process`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<VoiceProcessResponse>;
+}
+
+/**
+ * Generate speech (TTS) from text. Returns audio as a Blob.
+ */
+export async function speakText(
+  getToken: GetToken,
+  text: string,
+  voice: string = "nova",
+): Promise<Blob> {
+  const authHeaders = await bearerAuth(getToken);
+  const formData = new FormData();
+  formData.append("text", text);
+  formData.append("voice", voice);
+
+  const res = await fetch(`${base()}/voice/speak`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.blob();
+}
+

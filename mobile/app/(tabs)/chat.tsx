@@ -11,12 +11,14 @@ import {
   Animated,
   Keyboard,
   Dimensions,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
 import { processInput, type ProcessResponse, type ProcessType } from "@/lib/api";
+import { useVoice } from "@/lib/useVoice";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -378,6 +380,7 @@ export default function ChatScreen() {
   const [rows, setRows] = useState<ChatRow[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const { voiceState, recordingDuration, startRecording, stopRecording, cancelRecording, playAudioBase64, stopPlayback } = useVoice(getToken);
   const flatListRef = useRef<FlatList>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -474,6 +477,51 @@ export default function ChatScreen() {
     }
   }, [input, loading, getToken]);
 
+  // ── Voice handler ──────────────────────────────────────────────────
+  const handleVoicePress = useCallback(async () => {
+    if (voiceState === "recording") {
+      // Stop recording and process
+      setLoading(true);
+      const result = await stopRecording();
+      if (result) {
+        // Add user message (transcript)
+        const userMsg: ChatRow = {
+          id: String(Date.now()) + "_vu",
+          role: "user",
+          text: `🎙️ ${result.transcript}`,
+          timestamp: Date.now(),
+        };
+        const assistantRow: ChatRow = {
+          id: String(Date.now()) + "_va",
+          role: "assistant",
+          assistant: {
+            success: result.success,
+            type: result.type,
+            response: result.response,
+            data: result.data,
+          },
+          timestamp: Date.now(),
+        };
+        setRows((prev) => [...prev, userMsg, assistantRow]);
+        scrollToBottom();
+      } else {
+        Alert.alert("Voice Error", "Could not process voice input. Please try again.");
+      }
+      setLoading(false);
+    } else if (voiceState === "playing") {
+      await stopPlayback();
+    } else if (voiceState === "idle" && !loading) {
+      const started = await startRecording();
+      if (!started) {
+        Alert.alert("Permission Needed", "Please allow microphone access to use voice input.");
+      }
+    }
+  }, [voiceState, loading, startRecording, stopRecording, stopPlayback, scrollToBottom]);
+
+  const handleCancelVoice = useCallback(async () => {
+    await cancelRecording();
+  }, [cancelRecording]);
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -534,6 +582,26 @@ export default function ChatScreen() {
           onContentSizeChange={scrollToBottom}
         />
 
+        {/* Voice Recording Overlay */}
+        {voiceState === "recording" && (
+          <View style={styles.voiceOverlay}>
+            <View style={styles.voiceOverlayContent}>
+              <Animated.View style={styles.voicePulseRing} />
+              <View style={styles.voiceMicCircle}>
+                <Ionicons name="mic" size={36} color="#fff" />
+              </View>
+              <Text style={styles.voiceTimer}>
+                {Math.floor(recordingDuration / 60).toString().padStart(2, "0")}:
+                {(recordingDuration % 60).toString().padStart(2, "0")}
+              </Text>
+              <Text style={styles.voiceHint}>Listening... Tap mic to send</Text>
+              <TouchableOpacity onPress={handleCancelVoice} style={styles.voiceCancelBtn}>
+                <Text style={styles.voiceCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Input Bar */}
         <View
           style={[
@@ -542,6 +610,33 @@ export default function ChatScreen() {
           ]}
         >
           <View style={styles.inputWrapper}>
+            {/* Mic button */}
+            <TouchableOpacity
+              onPress={handleVoicePress}
+              disabled={loading && voiceState !== "recording"}
+              style={[
+                styles.micButton,
+                voiceState === "recording" && styles.micButtonRecording,
+                voiceState === "processing" && styles.micButtonProcessing,
+                voiceState === "playing" && styles.micButtonPlaying,
+              ]}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={
+                  voiceState === "recording" ? "stop"
+                    : voiceState === "playing" ? "volume-high"
+                    : voiceState === "processing" ? "hourglass"
+                    : "mic"
+                }
+                size={20}
+                color={
+                  voiceState === "recording" ? "#fff"
+                    : voiceState === "playing" ? Colors.accent
+                    : Colors.textSecondary
+                }
+              />
+            </TouchableOpacity>
             <TextInput
               style={styles.input}
               placeholder="Ask anything... Hindi bhi chalega!"
@@ -551,7 +646,7 @@ export default function ChatScreen() {
               onSubmitEditing={send}
               returnKeyType="send"
               multiline={false}
-              editable={!loading}
+              editable={!loading && voiceState === "idle"}
             />
             <TouchableOpacity
               onPress={send}
@@ -783,7 +878,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.glassBorder,
     borderRadius: Radius.full,
-    paddingLeft: Spacing.xl,
+    paddingLeft: Spacing.sm,
     paddingRight: Spacing.xs,
   },
   input: {
@@ -807,5 +902,84 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.4,
+  },
+  // Voice styles
+  micButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  micButtonRecording: {
+    backgroundColor: Colors.danger,
+    shadowColor: Colors.danger,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  micButtonProcessing: {
+    opacity: 0.5,
+  },
+  micButtonPlaying: {
+    backgroundColor: "rgba(99,102,241,0.15)",
+  },
+  voiceOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  voiceOverlayContent: {
+    alignItems: "center",
+    gap: Spacing.lg,
+  },
+  voicePulseRing: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: "rgba(243,63,94,0.3)",
+    top: -10,
+  },
+  voiceMicCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.danger,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: Colors.danger,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  voiceTimer: {
+    fontSize: FontSize.xxl,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    fontVariant: ["tabular-nums"],
+    marginTop: Spacing.md,
+  },
+  voiceHint: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+  },
+  voiceCancelBtn: {
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.glassBorder,
+  },
+  voiceCancelText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: "600",
   },
 });

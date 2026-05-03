@@ -430,3 +430,79 @@ export async function verifyOrder(
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<VerifyOrderResponse>;
 }
+
+// ── Voice API ───────────────────────────────────────────────────────────
+
+export type VoiceTranscribeResponse = {
+  success: boolean;
+  text: string;
+  error?: string;
+};
+
+export type VoiceProcessResponse = {
+  success: boolean;
+  transcript: string;
+  response: string;
+  type: string;
+  data: ProcessData;
+  audio_base64: string | null;
+};
+
+/**
+ * Send recorded audio to the backend for transcription (Whisper STT).
+ */
+export async function transcribeAudio(
+  getToken: GetToken,
+  audioUri: string,
+  mimeType: string = "audio/m4a"
+): Promise<VoiceTranscribeResponse> {
+  const authHeaders = await bearerAuth(getToken);
+  const formData = new FormData();
+  formData.append("audio", {
+    uri: audioUri,
+    type: mimeType,
+    name: "recording.m4a",
+  } as any);
+
+  const res = await fetch(`${getApiBase()}/voice/transcribe`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<VoiceTranscribeResponse>;
+}
+
+/**
+ * Full voice pipeline: send audio → backend transcribes → processes → returns text + TTS audio.
+ */
+export async function voiceProcess(
+  getToken: GetToken,
+  audioUri: string,
+  opts?: {
+    userTimezone?: string;
+    voice?: string;
+    tts?: boolean;
+    mimeType?: string;
+  }
+): Promise<VoiceProcessResponse> {
+  const authHeaders = await bearerAuth(getToken);
+  const formData = new FormData();
+  formData.append("audio", {
+    uri: audioUri,
+    type: opts?.mimeType ?? "audio/m4a",
+    name: "recording.m4a",
+  } as any);
+  if (opts?.userTimezone) formData.append("user_timezone", opts.userTimezone);
+  if (opts?.voice) formData.append("voice", opts.voice);
+  formData.append("tts", opts?.tts !== false ? "true" : "false");
+
+  const res = await fetch(`${getApiBase()}/voice/process`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<VoiceProcessResponse>;
+}
+

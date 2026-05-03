@@ -12,5 +12,6 @@ python-dotenv
 pytest
 apscheduler
 python-dateutil
+python-multipart
 
 

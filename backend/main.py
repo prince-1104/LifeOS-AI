@@ -25,6 +25,7 @@ from routes.analytics import router as analytics_router
 from routes.admin import router as admin_router
 from routes.profile import router as profile_router
 from routes.stripe_routes import router as payments_router
+from routes.voice import router as voice_router
 from scheduler.reminder_scheduler import (
     shutdown_reminder_scheduler,
     start_reminder_scheduler,
@@ -60,6 +61,7 @@ app.include_router(analytics_router)
 app.include_router(admin_router)
 app.include_router(profile_router)
 app.include_router(payments_router)
+app.include_router(voice_router)
 
 
 class ProcessRequest(BaseModel):
