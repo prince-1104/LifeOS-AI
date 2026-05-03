@@ -173,7 +173,19 @@ export function ChatBox() {
     }
   }, [input, session.userId, loading, userLoaded, getToken, maxChars]);
 
-  // ── Voice recording via MediaRecorder ─────────────────────────────
+  // ── Voice recording via MediaRecorder + auto-stop on silence ───────
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const vadFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+  const silenceStartRef = useRef<number>(0);
+  const hasSpeechRef = useRef(false);
+
+  const SILENCE_THRESHOLD = 15;     // RMS level below this = silence
+  const SILENCE_DURATION_MS = 1800; // 1.8s of silence after speech → auto-stop
+  const MIN_RECORD_MS = 600;        // don't auto-stop in the first 600ms
+
+  const stopVoiceRecordingRef = useRef<(() => Promise<void>) | null>(null);
+
   const startVoiceRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -187,12 +199,74 @@ export function ChatBox() {
       setVoiceState("recording");
       setRecordingDuration(0);
       durationTimerRef.current = setInterval(() => setRecordingDuration((d) => d + 1), 1000);
+
+      // ── Setup silence detection (VAD) ──────────────────────────────
+      const ctx = new AudioContext();
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      audioContextRef.current = ctx;
+      analyserRef.current = analyser;
+      hasSpeechRef.current = false;
+      silenceStartRef.current = 0;
+
+      const buffer = new Uint8Array(analyser.frequencyBinCount);
+      const recordStartTime = Date.now();
+
+      const checkLevel = () => {
+        if (!analyserRef.current) return;
+        analyser.getByteTimeDomainData(buffer);
+        // Calculate RMS level
+        let sum = 0;
+        for (let i = 0; i < buffer.length; i++) {
+          const val = (buffer[i] - 128) / 128;
+          sum += val * val;
+        }
+        const rms = Math.sqrt(sum / buffer.length) * 100;
+
+        const elapsed = Date.now() - recordStartTime;
+
+        if (rms > SILENCE_THRESHOLD) {
+          // User is speaking
+          hasSpeechRef.current = true;
+          silenceStartRef.current = 0;
+        } else if (hasSpeechRef.current && elapsed > MIN_RECORD_MS) {
+          // Silence after speech
+          if (silenceStartRef.current === 0) {
+            silenceStartRef.current = Date.now();
+          } else if (Date.now() - silenceStartRef.current > SILENCE_DURATION_MS) {
+            // Auto-stop! User is done speaking
+            stopVoiceRecordingRef.current?.();
+            return;
+          }
+        }
+
+        vadFrameRef.current = requestAnimationFrame(checkLevel);
+      };
+      vadFrameRef.current = requestAnimationFrame(checkLevel);
     } catch {
       alert("Microphone access denied. Please allow microphone permissions.");
     }
   }, []);
 
+  /** Tear down the silence-detection analyser. */
+  const cleanupVad = useCallback(() => {
+    if (vadFrameRef.current) {
+      cancelAnimationFrame(vadFrameRef.current);
+      vadFrameRef.current = null;
+    }
+    analyserRef.current = null;
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    hasSpeechRef.current = false;
+    silenceStartRef.current = 0;
+  }, []);
+
   const stopVoiceRecording = useCallback(async () => {
+    cleanupVad();
     if (durationTimerRef.current) {
       clearInterval(durationTimerRef.current);
       durationTimerRef.current = null;
@@ -257,9 +331,15 @@ export function ChatBox() {
       };
       recorder.stop();
     });
-  }, [getToken, scrollToBottom]);
+  }, [getToken, scrollToBottom, cleanupVad]);
+
+  // Keep the ref in sync so the VAD loop can call stopVoiceRecording
+  useEffect(() => {
+    stopVoiceRecordingRef.current = stopVoiceRecording;
+  }, [stopVoiceRecording]);
 
   const cancelVoiceRecording = useCallback(() => {
+    cleanupVad();
     if (durationTimerRef.current) {
       clearInterval(durationTimerRef.current);
       durationTimerRef.current = null;
@@ -273,7 +353,7 @@ export function ChatBox() {
     audioChunksRef.current = [];
     setVoiceState("idle");
     setRecordingDuration(0);
-  }, []);
+  }, [cleanupVad]);
 
   const handleMicClick = useCallback(() => {
     if (voiceState === "idle") startVoiceRecording();

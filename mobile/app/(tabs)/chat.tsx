@@ -594,7 +594,7 @@ export default function ChatScreen() {
                 {Math.floor(recordingDuration / 60).toString().padStart(2, "0")}:
                 {(recordingDuration % 60).toString().padStart(2, "0")}
               </Text>
-              <Text style={styles.voiceHint}>Listening... Tap mic to send</Text>
+              <Text style={styles.voiceHint}>Listening... auto-stops when you pause</Text>
               <TouchableOpacity onPress={handleCancelVoice} style={styles.voiceCancelBtn}>
                 <Text style={styles.voiceCancelText}>Cancel</Text>
               </TouchableOpacity>
