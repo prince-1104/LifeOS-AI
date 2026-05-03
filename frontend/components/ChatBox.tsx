@@ -180,21 +180,25 @@ export function ChatBox() {
   const silenceStartRef = useRef<number>(0);
   const hasSpeechRef = useRef(false);
 
-  const SILENCE_THRESHOLD = 15;     // RMS level below this = silence
-  const SILENCE_DURATION_MS = 1800; // 1.8s of silence after speech → auto-stop
-  const MIN_RECORD_MS = 600;        // don't auto-stop in the first 600ms
+  const SILENCE_THRESHOLD = 3;      // RMS level — browser mic speech is ~2-8, silence ~0-1
+  const SILENCE_DURATION_MS = 2000; // 2s of silence after speech → auto-stop
+  const MIN_RECORD_MS = 1000;       // don't auto-stop in the first 1s
 
   const stopVoiceRecordingRef = useRef<(() => Promise<void>) | null>(null);
 
   const startVoiceRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+      // Try opus, fall back to default
+      let mimeType = "audio/webm;codecs=opus";
+      if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
-      recorder.start();
+      // Use timeslice to capture chunks during recording (not just on stop)
+      recorder.start(500);
       mediaRecorderRef.current = recorder;
       setVoiceState("recording");
       setRecordingDuration(0);
@@ -204,7 +208,8 @@ export function ChatBox() {
       const ctx = new AudioContext();
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 512;
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.5;
       source.connect(analyser);
       audioContextRef.current = ctx;
       analyserRef.current = analyser;
@@ -217,7 +222,7 @@ export function ChatBox() {
       const checkLevel = () => {
         if (!analyserRef.current) return;
         analyser.getByteTimeDomainData(buffer);
-        // Calculate RMS level
+        // Calculate RMS of the waveform
         let sum = 0;
         for (let i = 0; i < buffer.length; i++) {
           const val = (buffer[i] - 128) / 128;

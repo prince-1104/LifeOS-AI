@@ -25,10 +25,10 @@ type VoiceResult = {
 };
 
 // ── VAD settings ──────────────────────────────────────────────────────
-const SILENCE_THRESHOLD_DB = -35;   // dBFS; below this = silence
-const SILENCE_DURATION_MS = 1800;   // 1.8s of silence after speech → auto-stop
-const MIN_RECORD_MS = 800;          // don't auto-stop in the first 800ms
-const METERING_INTERVAL_MS = 250;   // how often to check audio level
+const SILENCE_THRESHOLD_DB = -45;   // dBFS; below this = silence (phone mics are sensitive)
+const SILENCE_DURATION_MS = 2000;   // 2s of silence after speech → auto-stop
+const MIN_RECORD_MS = 1000;         // don't auto-stop in the first 1s
+const METERING_INTERVAL_MS = 200;   // how often to check audio level
 
 export function useVoice(getToken: GetToken) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
