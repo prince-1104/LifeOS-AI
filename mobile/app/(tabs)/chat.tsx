@@ -609,8 +609,8 @@ export default function ChatScreen() {
             { paddingBottom: Platform.OS === "ios" ? insets.bottom : Spacing.md },
           ]}
         >
-          <View style={styles.inputWrapper}>
-            {/* Mic button */}
+          <View style={styles.inputRow}>
+            {/* Prominent Mic Button */}
             <TouchableOpacity
               onPress={handleVoicePress}
               disabled={loading && voiceState !== "recording"}
@@ -629,36 +629,35 @@ export default function ChatScreen() {
                     : voiceState === "processing" ? "hourglass"
                     : "mic"
                 }
-                size={20}
-                color={
-                  voiceState === "recording" ? "#fff"
-                    : voiceState === "playing" ? Colors.accent
-                    : Colors.textSecondary
-                }
+                size={24}
+                color="#fff"
               />
             </TouchableOpacity>
-            <TextInput
-              style={styles.input}
-              placeholder="Ask anything... Hindi bhi chalega!"
-              placeholderTextColor={Colors.textMuted}
-              value={input}
-              onChangeText={setInput}
-              onSubmitEditing={send}
-              returnKeyType="send"
-              multiline={false}
-              editable={!loading && voiceState === "idle"}
-            />
-            <TouchableOpacity
-              onPress={send}
-              disabled={!input.trim() || loading}
-              style={[
-                styles.sendButton,
-                (!input.trim() || loading) && styles.sendButtonDisabled,
-              ]}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="send" size={18} color="#fff" />
-            </TouchableOpacity>
+            {/* Text Input + Send */}
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Type or tap mic..."
+                placeholderTextColor={Colors.textMuted}
+                value={input}
+                onChangeText={setInput}
+                onSubmitEditing={send}
+                returnKeyType="send"
+                multiline={false}
+                editable={!loading && voiceState === "idle"}
+              />
+              <TouchableOpacity
+                onPress={send}
+                disabled={!input.trim() || loading}
+                style={[
+                  styles.sendButton,
+                  (!input.trim() || loading) && styles.sendButtonDisabled,
+                ]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="send" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -868,17 +867,23 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.glassBorder,
     backgroundColor: "rgba(10,10,10,0.95)",
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
   },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
   inputWrapper: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.bgInput,
     borderWidth: 1,
     borderColor: Colors.glassBorder,
     borderRadius: Radius.full,
-    paddingLeft: Spacing.sm,
+    paddingLeft: Spacing.lg,
     paddingRight: Spacing.xs,
   },
   input: {
@@ -905,25 +910,35 @@ const styles = StyleSheet.create({
   },
   // Voice styles
   micButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: Colors.accent,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: "rgba(129,140,248,0.3)",
   },
   micButtonRecording: {
     backgroundColor: Colors.danger,
+    borderColor: "rgba(244,63,94,0.4)",
     shadowColor: Colors.danger,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.7,
+    shadowRadius: 16,
+    elevation: 8,
   },
   micButtonProcessing: {
-    opacity: 0.5,
+    backgroundColor: Colors.accentDark,
+    opacity: 0.7,
   },
   micButtonPlaying: {
-    backgroundColor: "rgba(99,102,241,0.15)",
+    backgroundColor: Colors.accentDark,
+    borderColor: "rgba(129,140,248,0.5)",
   },
   voiceOverlay: {
     ...StyleSheet.absoluteFillObject,
