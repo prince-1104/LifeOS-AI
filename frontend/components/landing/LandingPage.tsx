@@ -242,7 +242,7 @@ export function LandingPage() {
               Join over 150,000+ early adopters building a smarter life with Cortexa AI.<br className="hidden md:block" /> No setup required, just your curiosity.
            </p>
            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5 px-4">
-              <a href="https://expo.dev/artifacts/eas/dAQbFcSh4jhnkmAJtxtg7g.apk" download className="block w-full sm:w-auto rounded-full bg-[#E8D1FF] px-8 py-4 text-base font-bold text-[#140A1F] shadow-[0_0_20px_rgba(232,209,255,0.2)] transition hover:opacity-90 hover:scale-105 active:scale-95 text-center">
+              <a href="https://expo.dev/artifacts/eas/9VUYbfXsyNopV6GZDrHqd9.apk" download className="block w-full sm:w-auto rounded-full bg-[#E8D1FF] px-8 py-4 text-base font-bold text-[#140A1F] shadow-[0_0_20px_rgba(232,209,255,0.2)] transition hover:opacity-90 hover:scale-105 active:scale-95 text-center">
                  Download our Mobile App
               </a>
               <button className="w-full sm:w-auto rounded-full border border-white/10 bg-[#1A0B2E] hover:bg-[#2A153A] px-8 py-4 text-base font-bold text-[#E8D1FF] transition">
