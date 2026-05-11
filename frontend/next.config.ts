@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://lifeos-ai-production-ceea.up.railway.app/:path*',
+        destination: 'https://cortexa-api-868473990276.asia-south1.run.app/:path*',
       },
     ];
   },
