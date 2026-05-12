@@ -1,81 +1,182 @@
 # TrackerAgent System Architecture
 
-This document describes the implemented functionalities and system architecture up to date, focusing primarily on the AI agent workflows and the orchestration layer.
-
-## System Overview
-
-TrackerAgent is a multi-agent personal life assistant designed to process natural language inputs, classify their intent, and route them to relevant specific agents for data creation or extraction. 
-
-**Tech Stack:**
-- **Frontend:** Next.js (React), Clerk (Authentication)
-- **Backend:** FastAPI (Python), SQLAlchemy (Async), Uvicorn
-- **Databases:** PostgreSQL (Relational data, logging, financial data), Qdrant (Vector database for semantic memory search)
-- **AI Models:** Large Language Models (e.g., OpenAI via `AsyncOpenAI`) handling intent classification and data extraction.
+This document outlines the high-level architecture and system design for **TrackerAgent** (also known as Cortexa AI), a multi-agent personal life assistant platform.
 
 ---
 
-## Capabilities & Functionalities
+## 1. System Overview
 
-At this moment, the system is capable of understanding four main types of user inputs, each handled by its own agent:
+TrackerAgent is a full-stack, cross-platform intelligent assistant that processes natural language inputs to autonomously manage finances, memories, queries, and reminders. The system relies on a single-prompt orchestrator to classify intents and extract payloads, which are then routed to specialized agents for deterministic execution.
 
-1. **Finance Tracking (`Finance Agent`)**
-   - **Functionality**: Tracks income and expenses. It can infer the transaction type (income/expense) and extract details like amount, categories (e.g., "food"), and sources/payees (e.g., "from sumit", "to gym").
-   - **Storage**: Data is saved to PostgreSQL.
+### High-Level Architecture Diagram
 
-2. **Memory Management (`Memory Agent`)**
-   - **Functionality**: Stores generic facts, notes, and context. It extracts the raw content and generates relevant thematic "tags" for the memory.
-   - **Storage**: Data is stored both in PostgreSQL (for raw tracking) and Qdrant (for vector-based semantic search).
+```mermaid
+graph TD
+    subgraph Clients
+        F[Frontend Web App\nNext.js, Port 3006]
+        M[Mobile App\nReact Native / Expo]
+    end
 
-3. **Query/Retrieval (`Query Agent`)**
-   - **Functionality**: Re-surfaces saved memories and queries financial data. 
-   - **Features**: 
-     - Evaluates queries for financial intent (e.g., "how much did I spend today?", "what are my top spending categories?").
-     - Performs semantic searches through Qdrant vector memory for non-finance-related context queries (e.g., "where are my keys?"). It filters, matches against stopwords, and deduplicates identical contents.
+    subgraph API Gateway & Auth
+        C[Clerk Auth]
+    end
 
-4. **Task Reminders (`Reminder Agent`)**
-   - **Functionality**: Schedules reminders by extracting the task and the associated time based on the user's specific timezone.
-   - **Storage/Execution**: Saved to PostgreSQL and processed by an internal scheduler (`reminder_scheduler.py`) that monitors and executes alarms.
+    subgraph Core Backend Services
+        API[FastAPI Server\nPort 6060]
+        PS[Process Service]
+        ORC[LLM Orchestrator]
+        R[Router]
+        
+        subgraph Agents
+            FA[Finance Agent]
+            MA[Memory Agent]
+            QA[Query Agent]
+            RA[Reminder Agent]
+        end
+        
+        SCH[Reminder Scheduler]
+    end
+
+    subgraph Data Layer
+        PG[(PostgreSQL\nRelational DB)]
+        QD[(Qdrant\nVector DB)]
+    end
+
+    subgraph External Integrations
+        LLM[OpenAI GPT API]
+        PAY[Cashfree Payments]
+    end
+
+    %% Connections
+    F <--> |REST API| API
+    M <--> |REST API| API
+    F <--> |JWT| C
+    M <--> |JWT| C
+    
+    API --> |Validates JWT| C
+    API --> PS
+    PS --> ORC
+    ORC <--> |Prompt / JSON| LLM
+    ORC --> R
+    R --> FA
+    R --> MA
+    R --> QA
+    R --> RA
+    
+    FA --> |CRUD Transactions| PG
+    MA --> |Raw Content| PG
+    MA --> |Embeddings| QD
+    QA --> |Heuristic SQL| PG
+    QA --> |Semantic Search| QD
+    RA --> |Schedules| PG
+    SCH --> |Executes Alarms| PG
+    
+    API <--> |Webhook / Billing| PAY
+```
 
 ---
 
-## Orchestrator & Agent Workflow
+## 2. Technology Stack
 
-The core magic of TrackerAgent lies in how it seamlessly classifies natural language and routes it to specific components, minimizing excessive LLM calls (managing optimal latency and cost) through a robust pipeline.
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | Next.js 14, React, TailwindCSS | Web client with Server-Side Rendering (SSR) & App Router. |
+| **Mobile** | React Native, Expo, EAS | Native Android/iOS client sharing the same API. |
+| **Backend** | Python 3.11+, FastAPI, Uvicorn | High-performance async API server. |
+| **Database (Relational)** | PostgreSQL, SQLAlchemy (Async) | Storing users, finances, raw logs, reminders. |
+| **Database (Vector)** | Qdrant | Storing and semantic searching of memories and contexts. |
+| **Authentication** | Clerk | JWT-based secure authentication (Web & Mobile). |
+| **AI/LLM** | OpenAI API (`AsyncOpenAI`) | Natural Language Processing and Orchestration. |
+| **Payments** | Cashfree Payments | Subscription billing and UPI support. |
 
-### 1. User Input -> Process Service (`services/process_service.py`)
-- User inputs trigger the `/process` endpoint.
-- Validates the input length, handles rate-limiting checks, and ensures empty messages are rejected. 
-- Dispatches the input to the Orchestrator.
+---
 
-### 2. Orchestrator (`orchestrator_llm.py`)
-- **Single Prompt LLM Classification**: The orchestrator is completely powered by a single LLM call. Instead of generating text or chaining multiple models, it's strictly instructed via a `SYSTEM PROMPT` to return **structured JSON**.
-- **Intent & Payload Extraction**: It classifies the "intent/type" (`memory`, `query`, `finance`, `reminder`, or `unknown`). Crucially, in the same pass, it extracts agent-specific payloads:
-  - If Finance: Extracts `amount`, `transaction_type`, `category`, and `source`.
-  - If Memory: Extracts `content` and `tags`.
-  - If Reminder: Extracts `time` and `task`.
-- **Latency Optimization**: By extracting schemas concurrently with classification, the system dramatically reduces processing time because downstream agents largely do not need to call the LLM themselves to parse entities.
-- Converts the JSON into a strongly typed Pydantic `OrchestratorOutput` schema.
+## 3. Core Workflow: AI Orchestration & Agents
 
-### 3. Router (`orchestrator/router.py`)
-- The output from the Orchestrator hits the Router. 
-- Depending on the `OrchestratorOutput.type`, the router triggers `.process()` on the appropriate Agent, passing along the DB connection, user ID, user timezone, and the extracted orchestrator context.
+TrackerAgent minimizes LLM latency and costs by utilizing a **Single-Prompt Classification & Extraction** pipeline.
 
-### 4. Agents Processing (`agents/`)
-Agents receive the structured request, meaning they execute mostly deterministic, rigid logic rather than invoking further probabilistic AI behavior.
+```mermaid
+sequenceDiagram
+    participant User
+    participant ProcessService
+    participant Orchestrator
+    participant OpenAI
+    participant Router
+    participant SpecificAgent as Target Agent (e.g. Finance)
+    participant Database
 
-* **Finance Agent (`finance_agent.py`)**: Checks the `OrchestratorOutput` for finance-related parameters. Uses a few regex fallbacks for `infer_transaction_type` and `extract_source` if the orchestrator missed them. Inserts into the DB.
-* **Memory Agent (`memory_agent.py`)**: Uses the `content` and `tags` provided by the Orchestrator to bypass secondary parsing LLMs, directly passing the payload to Qdrant memory storage.
-* **Query Agent (`query_agent.py`)**: Employs heuristic logic (`_is_week_spend_intent`, `_is_top_categories_intent`) to identify if it can resolve the query explicitly via precise PostgreSQL SQL queries, avoiding embeddings altogether for concrete financial questions. If not financial, queries the vector database payload for textual chunks. 
-* **Reminder Agent (`reminder_agent.py`)**: Takes the orchestrator's explicit `task` and uses a localized time parser with timezone awareness to save the task.
+    User->>ProcessService: "Spent ₹500 on food"
+    ProcessService->>Orchestrator: Dispatch Input
+    Orchestrator->>OpenAI: SYSTEM PROMPT (Classification + Extraction)
+    OpenAI-->>Orchestrator: Structured JSON (Intent: finance, Amount: 500, Category: food)
+    Orchestrator->>Router: Pydantic Schema (OrchestratorOutput)
+    Router->>SpecificAgent: .process(OrchestratorOutput)
+    SpecificAgent->>Database: Deterministic execution (DB Insert/Select)
+    SpecificAgent-->>Router: Response & Metadata
+    Router-->>ProcessService: ProcessResponseEnvelope
+    ProcessService-->>User: "Recorded ₹500 for food."
+```
 
-### 5. Bubbling Up & Response Handling
-Once the agent finishes its logic (often taking <50ms since it's just DB IO), the execution trickles backward.
-- The outcome message (`response_text`) and the type are returned to `process_service.py`.
-- Everything is encapsulated inside a `ProcessResponseEnvelope` alongside performance metadata (`latency_ms_total`), and sent back to the client.
+### Agents Breakdown
 
-## System Logging
+1. **Finance Agent (`finance_agent.py`)**
+   - **Role:** Logs income and expenses.
+   - **Logic:** Relies on the Orchestrator to extract `amount`, `transaction_type`, `category`, and `source`. Falls back to Regex if needed. Saves directly to PostgreSQL.
 
-All interaction steps are rigorously logged to PostgreSQL:
-- **`log_orchestrator_step`**: Tracks what the LLM orchestrator saw and decided, and how many milliseconds it took.
-- **`log_agent_step`**: Tracks the action and latency of the agent component.
-- **`log_error` / `log_query`**: Saves anomalies and the final response metadata for historical reference and system improvements.
+2. **Memory Agent (`memory_agent.py`)**
+   - **Role:** Saves facts, notes, and context.
+   - **Logic:** Receives `content` and `tags` directly from the Orchestrator. Saves raw data to PostgreSQL and embeds vectors into Qdrant.
+
+3. **Query Agent (`query_agent.py`)**
+   - **Role:** Re-surfaces data and answers queries.
+   - **Logic:** 
+     - Evaluates queries for precise numerical/financial intent (e.g., "top spending categories") and executes heuristic PostgreSQL queries.
+     - For non-financial queries, executes semantic vector search via Qdrant and ranks results.
+
+4. **Reminder Agent (`reminder_agent.py`)**
+   - **Role:** Handles task scheduling and alerts.
+   - **Logic:** Uses the Orchestrator's extracted `task` and `time`. An internal `reminder_scheduler.py` runs periodically to execute and dispatch alarms based on user timezones.
+
+---
+
+## 4. Security & Authentication
+
+- **Zero-Trust Backend:** The backend API never trusts the `user_id` passed from the client payload. 
+- **Clerk JWT:** The JWT `sub` claim is validated on every single protected route via `Authorization: Bearer <Clerk JWT>`.
+- **Tenant Isolation:** All database queries are explicitly scoped by the `user_id` derived from the validated JWT token.
+- **Webhook Verification:** Incoming webhooks from Cashfree (Payments) are verified using HMAC-SHA256 signatures to prevent malicious injections.
+
+---
+
+## 5. System Logging & Telemetry
+
+To improve agent accuracy and monitor system health, all steps in the orchestration pipeline are logged asynchronously:
+
+- **`log_orchestrator_step`**: Records the LLM prompt, response JSON, and latency (ms).
+- **`log_agent_step`**: Records agent-specific deterministic actions, queries performed, and execution latency.
+- **`log_error` / `log_query`**: Tracks anomalies and final response payloads returned to the client.
+
+---
+
+## 6. Project Structure Mapping
+
+```text
+TrackerAgent/
+├── backend/            # FastAPI Async Server
+│   ├── agents/         # Specific agent logic (Finance, Memory, Query, Reminder)
+│   ├── orchestrator/   # Single-prompt routing and classification
+│   ├── routes/         # HTTP API Controllers
+│   ├── services/       # Core business logic & scheduling
+│   ├── db/             # Models, Migrations, Postgres/Qdrant connection pools
+│   └── plans.py        # Subscription tier definitions
+│
+├── frontend/           # Next.js 14 App Router
+│   ├── app/            # Pages, API routes, Layouts
+│   ├── components/     # UI Components (Tailwind)
+│   └── lib/            # Utilities & Axios Clients
+│
+└── mobile/             # React Native App
+    ├── app/            # Expo Router Screens
+    ├── components/     # Mobile UI Components
+    └── lib/            # Shared utilities
+```
