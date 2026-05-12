@@ -2,6 +2,8 @@
 Voice I/O routes — transcribe (STT), speak (TTS), and full voice pipeline.
 
 Uses OpenAI Whisper for transcription and OpenAI TTS for speech synthesis.
+Note: Voice features require OpenAI. If OpenAI is unavailable (quota/key issue),
+these endpoints return a clear error — there is no Gemini equivalent for audio.
 """
 
 import io
@@ -46,8 +48,12 @@ async def transcribe(
         )
         return {"success": True, "text": transcript.text}
     except Exception as exc:
-        logger.exception("Whisper transcription failed")
-        return {"success": False, "text": "", "error": str(exc)}
+        logger.exception("Whisper transcription failed (OpenAI unavailable)")
+        return {
+            "success": False,
+            "text": "",
+            "error": "Voice transcription is temporarily unavailable. Please try text input.",
+        }
 
 
 @router.post("/speak")
@@ -76,8 +82,11 @@ async def speak(
             },
         )
     except Exception as exc:
-        logger.exception("TTS generation failed")
-        return {"success": False, "error": str(exc)}
+        logger.exception("TTS generation failed (OpenAI unavailable)")
+        return {
+            "success": False,
+            "error": "Text-to-speech is temporarily unavailable. Please read the response as text.",
+        }
 
 
 @router.post("/process")
@@ -111,11 +120,11 @@ async def voice_process(
         )
         transcribed_text = transcript.text.strip()
     except Exception as exc:
-        logger.exception("Voice pipeline: transcription failed")
+        logger.exception("Voice pipeline: transcription failed (OpenAI unavailable)")
         return {
             "success": False,
             "transcript": "",
-            "response": "Sorry, I couldn't understand the audio. Please try again.",
+            "response": "Voice input is temporarily unavailable. Please type your message instead.",
             "type": "error",
             "data": None,
             "audio_base64": None,

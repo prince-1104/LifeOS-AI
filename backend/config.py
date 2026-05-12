@@ -24,7 +24,9 @@ class Settings(BaseSettings):
             return "postgresql+asyncpg://" + v.removeprefix("postgresql://")
         return v
     QDRANT_API_KEY: str
-    OPENAI_API_KEY: str
+    # OpenAI is optional — used as primary LLM/embedding provider.
+    # If empty or quota-exhausted, the system automatically falls back to Gemini.
+    OPENAI_API_KEY: str = ""
     GEMINI_API_KEY: str
 
     DEFAULT_USER_ID: str = "default"

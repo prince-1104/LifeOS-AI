@@ -1,18 +1,28 @@
 """
 LLM orchestrator: returns structured JSON only. Does not execute tools or DB.
-Single OpenAI call per classify_llm (~300–800ms). Query execution after routing stays non-LLM.
+Primary: OpenAI (2s timeout). Fallback: Gemini if OpenAI fails or times out.
 """
 
+import asyncio
 import json
+import logging
 
+from google import genai
+from google.genai import types as genai_types
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
 from config import get_settings
 from schemas import OrchestratorOutput
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
-_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+_openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+_gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+# Timeout for OpenAI before switching to Gemini (seconds)
+OPENAI_TIMEOUT_SECONDS = 2
 
 SYSTEM_PROMPT = """You are an AI orchestrator for a personal life assistant system.
 
@@ -342,22 +352,23 @@ Output:
 """
 
 
-async def classify_llm(user_input: str) -> tuple[list[OrchestratorOutput], dict]:
-    """Classify user input and return (list_of_parsed_outputs, token_usage_dict).
+# ── OpenAI call ───────────────────────────────────────────────────────
 
-    Always returns a list (even for single-item inputs) for uniform handling.
-    """
-    response = await _client.chat.completions.create(
-        model=settings.ORCHESTRATOR_MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_input},
-        ],
-        temperature=0,
-        response_format={"type": "json_object"},
+async def _classify_with_openai(user_input: str) -> tuple[list[OrchestratorOutput], dict]:
+    """Try OpenAI classification with a strict timeout. Raises on failure/timeout."""
+    response = await asyncio.wait_for(
+        _openai_client.chat.completions.create(
+            model=settings.ORCHESTRATOR_MODEL,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_input},
+            ],
+            temperature=0,
+            response_format={"type": "json_object"},
+        ),
+        timeout=OPENAI_TIMEOUT_SECONDS,
     )
 
-    # Extract token usage from OpenAI response
     usage = {}
     if response.usage:
         usage = {
@@ -365,11 +376,45 @@ async def classify_llm(user_input: str) -> tuple[list[OrchestratorOutput], dict]
             "completion_tokens": response.usage.completion_tokens or 0,
             "total_tokens": response.usage.total_tokens or 0,
             "model": settings.ORCHESTRATOR_MODEL,
+            "provider": "openai",
         }
 
-    raw = response.choices[0].message.content
+    raw = response.choices[0].message.content or ""
+    return _parse_raw_json(raw), usage
+
+
+# ── Gemini fallback call ──────────────────────────────────────────────
+
+async def _classify_with_gemini(user_input: str) -> tuple[list[OrchestratorOutput], dict]:
+    """Gemini fallback classification."""
+    prompt = f"{SYSTEM_PROMPT}\n\nInput: {user_input}\nOutput:"
+    response = await _gemini_client.aio.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config=genai_types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0,
+        ),
+    )
+
+    usage = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "model": "gemini-2.0-flash",
+        "provider": "gemini",
+    }
+
+    raw = response.text or ""
+    return _parse_raw_json(raw), usage
+
+
+# ── JSON parser ───────────────────────────────────────────────────────
+
+def _parse_raw_json(raw: str) -> list[OrchestratorOutput]:
+    """Parse a raw JSON string into a list of OrchestratorOutput objects."""
     if not raw:
-        return [OrchestratorOutput(type="unknown")], usage
+        return [OrchestratorOutput(type="unknown")]
 
     try:
         data = json.loads(raw)
@@ -382,11 +427,53 @@ async def classify_llm(user_input: str) -> tuple[list[OrchestratorOutput], dict]
                     outputs.append(OrchestratorOutput.model_validate(item))
                 except (ValidationError, ValueError):
                     continue  # skip malformed items
-            if outputs:
-                return outputs, usage
-            return [OrchestratorOutput(type="unknown")], usage
+            return outputs if outputs else [OrchestratorOutput(type="unknown")]
 
         # Single-item response: {"type": "...", ...}
-        return [OrchestratorOutput.model_validate(data)], usage
+        return [OrchestratorOutput.model_validate(data)]
+
     except (json.JSONDecodeError, ValidationError, ValueError):
-        return [OrchestratorOutput(type="unknown")], usage
+        return [OrchestratorOutput(type="unknown")]
+
+
+# ── Public entry point ────────────────────────────────────────────────
+
+async def classify_llm(user_input: str) -> tuple[list[OrchestratorOutput], dict]:
+    """Classify user input and return (list_of_parsed_outputs, token_usage_dict).
+
+    Always returns a list (even for single-item inputs) for uniform handling.
+
+    Strategy:
+      1. Try OpenAI with a 2-second timeout.
+      2. On ANY failure (timeout, quota, network error), fall back to Gemini.
+    """
+    try:
+        outputs, usage = await _classify_with_openai(user_input)
+        logger.debug("classify_llm: used OpenAI (model=%s)", settings.ORCHESTRATOR_MODEL)
+        return outputs, usage
+    except asyncio.TimeoutError:
+        logger.warning(
+            "classify_llm: OpenAI timed out after %ss — falling back to Gemini",
+            OPENAI_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        logger.warning(
+            "classify_llm: OpenAI failed (%s: %s) — falling back to Gemini",
+            type(exc).__name__,
+            exc,
+        )
+
+    # Gemini fallback
+    try:
+        outputs, usage = await _classify_with_gemini(user_input)
+        logger.info("classify_llm: used Gemini fallback")
+        return outputs, usage
+    except Exception as exc:
+        logger.error("classify_llm: Gemini fallback also failed: %s", exc)
+        return [OrchestratorOutput(type="unknown")], {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "model": "none",
+            "provider": "none",
+        }
