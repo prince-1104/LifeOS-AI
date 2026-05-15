@@ -496,3 +496,44 @@ class DBService:
             "top_categories": top_cats,
         }
 
+    async def get_spending_in_date_range(
+        self, user_id: str, start_date: datetime, end_date: datetime
+    ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
+        """Total expenses and category breakdown within an arbitrary date range.
+
+        Returns (total_amount, [(category, amount), ...]).
+        """
+        # Total
+        stmt_total = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.type == "expense",
+            Transaction.event_time >= start_date,
+            Transaction.event_time <= end_date,
+        )
+        result = await self.session.execute(stmt_total)
+        total_raw = result.scalar_one()
+        total = Decimal(str(total_raw)) if total_raw is not None else Decimal("0")
+
+        # Category breakdown
+        cat = func.coalesce(Transaction.category, "uncategorized")
+        stmt_cats = (
+            select(cat, func.sum(Transaction.amount))
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.type == "expense",
+                Transaction.event_time >= start_date,
+                Transaction.event_time <= end_date,
+            )
+            .group_by(cat)
+            .order_by(func.sum(Transaction.amount).desc())
+            .limit(10)
+        )
+        result = await self.session.execute(stmt_cats)
+        rows = result.all()
+        cats: list[tuple[str, Decimal]] = []
+        for c, s in rows:
+            amt = s if s is not None else Decimal("0")
+            cats.append((str(c), Decimal(str(amt))))
+
+        return total, cats
+

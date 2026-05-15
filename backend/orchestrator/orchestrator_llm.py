@@ -33,6 +33,7 @@ You MUST classify input into one of these types:
 - query
 - finance
 - reminder
+- reminder_update (when user wants to modify an existing reminder)
 - greeting
 - unknown
 
@@ -52,6 +53,13 @@ Rules:
   * Summary questions: "give me a summary", "financial overview"
   * ANY question about past/existing data = "query"
 - Greetings like "hi", "hello", "hey", "good morning", "good evening", "sup", "yo", "what's up" etc. are "greeting" type.
+
+CONVERSATION CONTEXT:
+- You may receive previous messages as context. Use them to understand follow-up messages.
+- When a user says something like "change the time", "make it 11pm", "update it", "cancel that", etc., look at the previous messages to understand WHAT they are referring to.
+- If the previous message was about a reminder and the user says "change the time to 11pm", classify as "reminder_update" with the new time and include the original task from context.
+- If the user refers to something from context, ALWAYS extract the full intent.
+- For time strings, ALWAYS use the correct spelling (e.g. "tomorrow" not "tommorow").
 
 MULTI-ITEM MESSAGES:
 - When a user mentions MULTIPLE items in a single message (e.g. multiple expenses, or an expense + a reminder), you MUST return ALL of them as an "items" array.
@@ -349,20 +357,57 @@ Output:
     {"type": "finance", "amount": 200, "transaction_type": "expense", "category": "groceries"}
   ]
 }
+
+FOLLOW-UP EXAMPLES (when previous context is about a reminder):
+
+Previous context: User set reminder "train booking" at 9:00 AM on 27th May
+Input: "Change the time. Keep it on 11pm"
+Output:
+{
+  "type": "reminder_update",
+  "task": "train booking",
+  "time": "27th 11pm"
+}
+
+Previous context: User set reminder "gym" at 7:00 AM tomorrow
+Input: "make it 8am"
+Output:
+{
+  "type": "reminder_update",
+  "task": "gym",
+  "time": "tomorrow 8am"
+}
+
+Previous context: User set reminder "meeting" on Monday 10am
+Input: "cancel that"
+Output:
+{
+  "type": "query",
+  "query": "cancel last reminder"
+}
 """
 
 
 # ── OpenAI call ───────────────────────────────────────────────────────
 
-async def _classify_with_openai(user_input: str) -> tuple[list[OrchestratorOutput], dict]:
+async def _classify_with_openai(
+    user_input: str,
+    conversation_context: list[dict] | None = None,
+) -> tuple[list[OrchestratorOutput], dict]:
     """Try OpenAI classification with a strict timeout. Raises on failure/timeout."""
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    # Add conversation context (last few exchanges) for follow-up understanding
+    if conversation_context:
+        for ctx in conversation_context:
+            messages.append(ctx)
+
+    messages.append({"role": "user", "content": user_input})
+
     response = await asyncio.wait_for(
         _openai_client.chat.completions.create(
             model=settings.ORCHESTRATOR_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-            ],
+            messages=messages,
             temperature=0,
             response_format={"type": "json_object"},
         ),
@@ -385,9 +430,18 @@ async def _classify_with_openai(user_input: str) -> tuple[list[OrchestratorOutpu
 
 # ── Gemini fallback call ──────────────────────────────────────────────
 
-async def _classify_with_gemini(user_input: str) -> tuple[list[OrchestratorOutput], dict]:
+async def _classify_with_gemini(
+    user_input: str,
+    conversation_context: list[dict] | None = None,
+) -> tuple[list[OrchestratorOutput], dict]:
     """Gemini fallback classification."""
-    prompt = f"{SYSTEM_PROMPT}\n\nInput: {user_input}\nOutput:"
+    context_text = ""
+    if conversation_context:
+        for ctx in conversation_context:
+            role = ctx.get("role", "user")
+            content = ctx.get("content", "")
+            context_text += f"\n{role.upper()}: {content}"
+    prompt = f"{SYSTEM_PROMPT}\n\nConversation history:{context_text}\n\nCurrent input: {user_input}\nOutput:"
     response = await _gemini_client.aio.models.generate_content(
         model="gemini-2.0-flash",
         contents=prompt,
@@ -438,17 +492,21 @@ def _parse_raw_json(raw: str) -> list[OrchestratorOutput]:
 
 # ── Public entry point ────────────────────────────────────────────────
 
-async def classify_llm(user_input: str) -> tuple[list[OrchestratorOutput], dict]:
+async def classify_llm(
+    user_input: str,
+    conversation_context: list[dict] | None = None,
+) -> tuple[list[OrchestratorOutput], dict]:
     """Classify user input and return (list_of_parsed_outputs, token_usage_dict).
 
     Always returns a list (even for single-item inputs) for uniform handling.
+    Accepts optional conversation_context for follow-up message understanding.
 
     Strategy:
       1. Try OpenAI with a 2-second timeout.
       2. On ANY failure (timeout, quota, network error), fall back to Gemini.
     """
     try:
-        outputs, usage = await _classify_with_openai(user_input)
+        outputs, usage = await _classify_with_openai(user_input, conversation_context)
         logger.debug("classify_llm: used OpenAI (model=%s)", settings.ORCHESTRATOR_MODEL)
         return outputs, usage
     except asyncio.TimeoutError:
@@ -465,7 +523,7 @@ async def classify_llm(user_input: str) -> tuple[list[OrchestratorOutput], dict]
 
     # Gemini fallback
     try:
-        outputs, usage = await _classify_with_gemini(user_input)
+        outputs, usage = await _classify_with_gemini(user_input, conversation_context)
         logger.info("classify_llm: used Gemini fallback")
         return outputs, usage
     except Exception as exc:

@@ -67,10 +67,23 @@ export type UserUsageCategory = {
   cost: number;
 };
 
+export type ModelUsage = {
+  model: string;
+  endpoint: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  total_requests: number;
+  cost_usd: number;
+  cost_inr: number;
+  last_used: string | null;
+};
+
 export type UserDetailedUsageResponse = {
   user_id: string;
   daily_usage: DailyUsage[];
   category_usage: UserUsageCategory[];
+  model_breakdown: ModelUsage[];
 };
 
 export type WeeklyUsage = {

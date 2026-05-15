@@ -76,7 +76,7 @@ export default function AdminDashboardPage() {
       )}
 
       {/* Summary cards */}
-      <SummaryCards data={summary} loading={loading} />
+      <SummaryCards data={summary} loading={loading} monthlyData={monthly} />
 
       {/* Usage chart */}
       <UsageChart

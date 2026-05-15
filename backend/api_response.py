@@ -55,6 +55,14 @@ def build_data_payload(orch: OrchestratorOutput, result_type: str) -> dict | Non
             r["time"] = orch.time
         return r or None
 
+    if result_type == "reminder_update":
+        r2: dict = {}
+        if orch.task:
+            r2["task"] = orch.task
+        if orch.time:
+            r2["time"] = orch.time
+        return r2 or None
+
     if result_type == "unknown":
         return None
 

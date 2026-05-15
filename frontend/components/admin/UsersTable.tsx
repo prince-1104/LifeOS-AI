@@ -168,6 +168,70 @@ export default function UsersTable({ users, loading }: Props) {
                 </div>
               ) : userDetails ? (
                 <div className="space-y-8">
+
+                  {/* Model Breakdown Section — THE KEY NEW FEATURE */}
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">
+                      💰 Cost Breakdown by Model
+                    </h4>
+                    {userDetails.model_breakdown && userDetails.model_breakdown.length > 0 ? (
+                      <div className="border border-white/10 rounded-xl overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-white/5 border-b border-white/10">
+                              <th className="text-left py-2.5 px-3 text-xs font-medium text-slate-400">Model</th>
+                              <th className="text-left py-2.5 px-3 text-xs font-medium text-slate-400">Endpoint</th>
+                              <th className="text-right py-2.5 px-3 text-xs font-medium text-slate-400">Requests</th>
+                              <th className="text-right py-2.5 px-3 text-xs font-medium text-slate-400">Input Tokens</th>
+                              <th className="text-right py-2.5 px-3 text-xs font-medium text-slate-400">Output Tokens</th>
+                              <th className="text-right py-2.5 px-3 text-xs font-medium text-slate-400">Total</th>
+                              <th className="text-right py-2.5 px-3 text-xs font-medium text-slate-400">Cost (USD)</th>
+                              <th className="text-right py-2.5 px-3 text-xs font-medium text-slate-400">Cost (INR)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {userDetails.model_breakdown.map((row, idx) => {
+                              const modelColor = row.model.includes("gpt")
+                                ? "text-green-400"
+                                : row.model.includes("gemini")
+                                  ? "text-blue-400"
+                                  : row.model.includes("whisper")
+                                    ? "text-amber-400"
+                                    : row.model.includes("tts")
+                                      ? "text-purple-400"
+                                      : "text-slate-300";
+                              return (
+                                <tr key={idx} className="border-b border-white/4 last:border-0 hover:bg-white/5">
+                                  <td className={`py-2 px-3 font-medium ${modelColor}`}>{row.model}</td>
+                                  <td className="py-2 px-3 text-slate-400 text-xs">{row.endpoint}</td>
+                                  <td className="py-2 px-3 text-right font-mono text-slate-300">{row.total_requests}</td>
+                                  <td className="py-2 px-3 text-right font-mono text-slate-400">{row.prompt_tokens.toLocaleString()}</td>
+                                  <td className="py-2 px-3 text-right font-mono text-slate-400">{row.completion_tokens.toLocaleString()}</td>
+                                  <td className="py-2 px-3 text-right font-mono text-slate-300">{row.total_tokens.toLocaleString()}</td>
+                                  <td className="py-2 px-3 text-right font-mono text-emerald-400">${row.cost_usd.toFixed(6)}</td>
+                                  <td className="py-2 px-3 text-right font-mono text-amber-300">₹{row.cost_inr.toFixed(4)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-white/5 border-t border-white/10">
+                              <td colSpan={6} className="py-2.5 px-3 text-sm font-semibold text-white">Total</td>
+                              <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-400">
+                                ${userDetails.model_breakdown.reduce((s, r) => s + r.cost_usd, 0).toFixed(6)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-semibold text-amber-300">
+                                ₹{userDetails.model_breakdown.reduce((s, r) => s + r.cost_inr, 0).toFixed(4)}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-500 italic">No model usage data available.</div>
+                    )}
+                  </div>
+
                   {/* Category Usage Section */}
                   <div>
                     <h4 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">Usage by Category (All time)</h4>

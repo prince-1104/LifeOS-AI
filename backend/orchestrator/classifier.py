@@ -54,4 +54,5 @@ async def classify(text: str) -> str:
         return "query"
 
     # Ambiguous or no match — fall back to Gemini
-    return await llm_classify(text)
+    result, _usage = await llm_classify(text)
+    return result

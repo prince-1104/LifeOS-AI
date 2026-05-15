@@ -28,6 +28,7 @@ async def route(
     plan_config: PlanConfig | None = None,
     use_fallback_model: bool = False,
     user_name: str | None = None,
+    request_id: str | None = None,
 ) -> tuple[str, str]:
     """
     Dispatch by orchestrator type.  Returns (response_text, type_string).
@@ -51,6 +52,7 @@ async def route(
             db,
             user_id=user_id,
             orchestrator=orch,
+            request_id=request_id,
         )
 
         # Post-processing: increment counter + FIFO eviction
@@ -135,6 +137,26 @@ async def route(
             f"Go ahead, I'll handle it for you! 🚀"
         )
         return greeting_msg, "greeting"
+
+    if t == "reminder_update":
+        # ── Follow-up reminder modification ───────────────────────────
+        # Treat as a new reminder with the updated time/task from context
+        if orch.task and orch.time:
+            # Re-route as a regular reminder
+            orch.type = "reminder"
+            text = await reminder_agent.process(
+                user_input,
+                orch,
+                db,
+                user_id,
+                user_timezone=user_timezone,
+            )
+            return text, "reminder"
+        else:
+            return (
+                "I understand you want to update something, but I need more details. "
+                "Could you say something like: 'Set reminder for train booking at 11pm on 27th May'?"
+            ), "reminder"
 
     return "🤔 I didn't understand that. Try rephrasing?", "unknown"
 

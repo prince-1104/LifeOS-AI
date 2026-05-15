@@ -6,6 +6,10 @@ from schemas import OrchestratorOutput
 from services.reminder_service import insert_reminder
 from utils.time_parse import parse_time
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 async def process(
     user_input: str,
@@ -14,16 +18,35 @@ async def process(
     user_id: str,
     user_timezone: ZoneInfo | None = None,
 ) -> str:
-    del user_input  # orchestrator fields are source of truth
-    if not orch.time or not orch.task or not str(orch.task).strip():
-        return "❌ I couldn't understand the reminder."
-
-    try:
-        reminder_time = parse_time(str(orch.time).strip(), user_tz=user_timezone)
-    except ValueError:
-        return "❌ I couldn't parse the reminder time."
+    if not orch.task or not str(orch.task).strip():
+        return "❌ I couldn't understand the reminder. Please specify what to remind you about."
 
     task = str(orch.task).strip()
+    reminder_time = None
+
+    # Try parsing the orchestrator's time field first
+    if orch.time and str(orch.time).strip():
+        orch_time = str(orch.time).strip()
+        try:
+            reminder_time = parse_time(orch_time, user_tz=user_timezone)
+        except ValueError:
+            logger.warning(
+                "Failed to parse orchestrator time %r, trying raw input", orch_time
+            )
+
+    # Fallback: try extracting time from the raw user input
+    if reminder_time is None and user_input:
+        try:
+            reminder_time = _try_parse_from_raw_input(user_input, user_timezone)
+        except Exception:
+            logger.debug("Fallback time parse from raw input also failed")
+
+    if reminder_time is None:
+        return (
+            "❌ I couldn't parse the reminder time. "
+            "Try something like 'tomorrow 5pm', 'Monday 10am', or 'in 30 minutes'."
+        )
+
     await insert_reminder(db, user_id, task, reminder_time)
 
     # Format the response in user time if timezone is known
@@ -39,3 +62,44 @@ async def process(
         when = display_time.strftime("%b %d, %I:%M %p").lstrip("0") + time_suffix
 
     return f"⏰ Reminder set for '{task}' at {when}."
+
+
+def _try_parse_from_raw_input(
+    user_input: str, user_tz: ZoneInfo | None
+) -> "datetime | None":
+    """Try to extract time from the raw user input by scanning for
+    common time expressions. This is a fallback when the LLM's time
+    field is malformed or misspelled."""
+    import re
+
+    low = user_input.lower()
+
+    # Try direct parse of the whole input (unlikely but fast)
+    try:
+        return parse_time(low, user_tz=user_tz)
+    except ValueError:
+        pass
+
+    # Try extracting after common prepositions:
+    # "at 5pm", "for tomorrow 5pm", "on Monday 10am"
+    patterns = [
+        r"(?:at|for|on|by)\s+(.+?)(?:\s+(?:to|for)\s+|$)",
+        r"(?:tomorrow|tmrw|tommorow|kal)\s*(.*)",
+        r"(\d{1,2}(?::\d{2})?\s*(?:am|pm))",
+        r"((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+.+)",
+        r"((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d+.+)",
+        r"(?:in|after)\s+(\d+\s*(?:min|hour|minute|hr|h|m)s?)",
+    ]
+    for pattern in patterns:
+        m = re.search(pattern, low, re.I)
+        if m:
+            try:
+                return parse_time(m.group(1).strip(), user_tz=user_tz)
+            except ValueError:
+                continue
+            try:
+                return parse_time(m.group(0).strip(), user_tz=user_tz)
+            except ValueError:
+                continue
+
+    return None

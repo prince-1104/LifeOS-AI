@@ -130,8 +130,21 @@ class UserUsageCategoryRow(BaseModel):
     cost: float
 
 
+class ModelUsageRow(BaseModel):
+    model: str
+    endpoint: str
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    total_requests: int
+    cost_usd: float
+    cost_inr: float
+    last_used: str | None = None
+
+
 class UserDetailedUsageResponse(BaseModel):
     user_id: str
     daily_usage: list[DailyUsageRow]
     category_usage: list[UserUsageCategoryRow]
+    model_breakdown: list[ModelUsageRow] = []
 

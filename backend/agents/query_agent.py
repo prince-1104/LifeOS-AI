@@ -67,6 +67,21 @@ _DAY_NAMES = {
     "sunday": 6, "sun": 6,
 }
 
+_MONTH_MAP = {
+    "january": 1, "jan": 1,
+    "february": 2, "feb": 2,
+    "march": 3, "mar": 3,
+    "april": 4, "apr": 4,
+    "may": 5,
+    "june": 6, "jun": 6,
+    "july": 7, "jul": 7,
+    "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10,
+    "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
+}
+
 _STOPWORDS = frozenset({
     "a", "an", "are", "did", "do", "does", "how", "i", "in", "is", "it",
     "me", "much", "my", "of", "on", "tell", "the", "to", "was", "were",
@@ -80,6 +95,13 @@ _STOPWORDS = frozenset({
 
 _SPEND_STRIP = _STOPWORDS | _SPEND_WORDS | frozenset({
     "send", "for", "list", "spends",
+    # Prevent month/date words from being treated as category keywords
+    "today", "yesterday", "tomorrow", "week", "month", "year",
+    "last", "this", "past", "next",
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept",
+    "oct", "nov", "dec",
 })
 
 
@@ -110,6 +132,62 @@ def _detect_period_days(text: str) -> int | None:
             return days
 
     return None
+
+
+def _detect_specific_month(text: str) -> int | None:
+    """Detect a specific month name in the text. Returns month number (1-12) or None."""
+    low = text.lower()
+    for name, num in _MONTH_MAP.items():
+        # Match as whole word to avoid 'may' matching 'maybe'
+        if re.search(r'\b' + re.escape(name) + r'\b', low):
+            return num
+    return None
+
+
+def _detect_specific_date(text: str) -> tuple[int | None, int | None]:
+    """Detect a specific date like '5th May', 'May 5', '5th', 'on 5th'.
+    Returns (month_number_or_None, day_number_or_None)."""
+    low = text.lower()
+    month = _detect_specific_month(text)
+
+    # "5th May", "5th may", "5 may"
+    m = re.search(r'(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(' + '|'.join(_MONTH_MAP.keys()) + r')\b', low)
+    if m:
+        day = int(m.group(1))
+        month = _MONTH_MAP.get(m.group(2), month)
+        return month, day
+
+    # "May 5th", "may 5"
+    m = re.search(r'(' + '|'.join(_MONTH_MAP.keys()) + r')\s+(\d{1,2})(?:st|nd|rd|th)?\b', low)
+    if m:
+        month = _MONTH_MAP.get(m.group(1), month)
+        day = int(m.group(2))
+        return month, day
+
+    # Just a day ordinal: "on 5th", "5th"
+    m = re.search(r'(?:on\s+)?(\d{1,2})(?:st|nd|rd|th)\b', low)
+    if m:
+        day = int(m.group(1))
+        if 1 <= day <= 31:
+            return month, day
+
+    return month, None
+
+
+def _get_month_date_range(year: int, month: int) -> tuple[datetime, datetime]:
+    """Get start and end datetime for a given month."""
+    import calendar
+    last_day = calendar.monthrange(year, month)[1]
+    start = datetime(year, month, 1, 0, 0, 0, tzinfo=timezone.utc)
+    end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
+    return start, end
+
+
+def _get_day_date_range(year: int, month: int, day: int) -> tuple[datetime, datetime]:
+    """Get start and end datetime for a specific day."""
+    start = datetime(year, month, day, 0, 0, 0, tzinfo=timezone.utc)
+    end = datetime(year, month, day, 23, 59, 59, tzinfo=timezone.utc)
+    return start, end
 
 
 def _detect_day_name(text: str) -> str | None:
@@ -307,24 +385,34 @@ async def _smart_data_answer(
         lines.append(f"\n📊 Total: {_fmt_amount(total)}")
         return "\n".join(lines)
 
+    # ── 2.5. Date-specific spend ("5th May", "April", "on 5th") ───────
+    # Must come BEFORE keyword extraction to prevent 'april'/'5th' being
+    # treated as expense category names
+    if _has_spending_intent(text) or any(p in low for p in ["how much", "total", "kitna", "kitne"]):
+        date_result = await _handle_date_specific_query(text, low, uid, svc)
+        if date_result is not None:
+            return date_result
+
     # ── 3. Category-specific spend ("how much on food") ──────────────
     keyword = _extract_spend_keyword(text)
     if keyword and _has_spending_intent(text):
-        days = _detect_period_days(text) or 30
-        items, total = await svc.search_expenses_by_keyword(uid, keyword)
-        if items:
-            period_label = _period_label(days)
-            lines = [f"💰 You spent {_fmt_amount(total)} on **{keyword}**:"]
-            for item in items[:10]:
-                lines.append(
-                    f"  • {item['category']} — {_fmt_amount(item['amount'])}"
-                    + (f" ({item['date']})" if item.get('date') else "")
-                )
-            if len(items) > 10:
-                lines.append(f"  ... and {len(items) - 10} more")
-            return "\n".join(lines)
-        else:
-            return f"🔍 No expenses found matching \"{keyword}\"."
+        # Prevent month/day names from being treated as keywords
+        if keyword.lower() not in _MONTH_MAP and not re.match(r'^\d{1,2}(?:st|nd|rd|th)?$', keyword):
+            days = _detect_period_days(text) or 30
+            items, total = await svc.search_expenses_by_keyword(uid, keyword)
+            if items:
+                period_label = _period_label(days)
+                lines = [f"💰 You spent {_fmt_amount(total)} on **{keyword}**:"]
+                for item in items[:10]:
+                    lines.append(
+                        f"  • {item['category']} — {_fmt_amount(item['amount'])}"
+                        + (f" ({item['date']})" if item.get('date') else "")
+                    )
+                if len(items) > 10:
+                    lines.append(f"  ... and {len(items) - 10} more")
+                return "\n".join(lines)
+            else:
+                return f"🔍 No expenses found matching \"{keyword}\"."
 
     # ── 4. Reminder queries ──────────────────────────────────────────
     if _has_reminder_intent(text):
@@ -346,6 +434,85 @@ async def _smart_data_answer(
 
 
 # ── Handlers ──────────────────────────────────────────────────────────
+
+async def _handle_date_specific_query(
+    text: str, low: str, uid: str, svc: DBService
+) -> str | None:
+    """Handle queries about specific dates or months.
+
+    Examples:
+      - 'How much did I spend on 5th May'
+      - 'How much did I spend in April month'
+      - 'Spending on 5th'
+      - 'April expenses'
+    """
+    now = datetime.now(timezone.utc)
+    month_num, day_num = _detect_specific_date(text)
+
+    # Skip if no specific date/month detected
+    if month_num is None and day_num is None:
+        return None
+
+    # Determine year — if month is in the future, use last year
+    year = now.year
+
+    if day_num is not None and month_num is not None:
+        # Specific day + month: "5th May", "May 5"
+        import calendar
+        max_day = calendar.monthrange(year, month_num)[1]
+        actual_day = min(day_num, max_day)
+        try:
+            start, end = _get_day_date_range(year, month_num, actual_day)
+        except ValueError:
+            return None
+        label = start.strftime("%B %d, %Y")
+    elif month_num is not None:
+        # Just a month: "April", "in April month"
+        start, end = _get_month_date_range(year, month_num)
+        # If month is in future, check last year
+        if start > now:
+            start, end = _get_month_date_range(year - 1, month_num)
+            year = year - 1
+        label = start.strftime("%B %Y")
+    elif day_num is not None:
+        # Just a day ordinal: "on 5th" — use current month
+        month_num = now.month
+        import calendar
+        max_day = calendar.monthrange(year, month_num)[1]
+        if day_num > max_day:
+            return None
+        try:
+            start, end = _get_day_date_range(year, month_num, day_num)
+        except ValueError:
+            return None
+        # If day is in future this month, check last month
+        if start > now:
+            if month_num == 1:
+                month_num = 12
+                year -= 1
+            else:
+                month_num -= 1
+            max_day = calendar.monthrange(year, month_num)[1]
+            if day_num > max_day:
+                return None
+            start, end = _get_day_date_range(year, month_num, day_num)
+        label = start.strftime("%B %d, %Y")
+    else:
+        return None
+
+    # Query transactions in the date range
+    total, cats = await svc.get_spending_in_date_range(uid, start, end)
+
+    if total == 0:
+        return f"💰 No expenses recorded for **{label}**."
+
+    lines = [f"💰 You spent **{_fmt_amount(total)}** in **{label}**."]
+    if cats:
+        lines.append("\n📋 Breakdown:")
+        for cat, amt in cats[:8]:
+            lines.append(f"  • {cat}: {_fmt_amount(amt)}")
+    return "\n".join(lines)
+
 
 async def _handle_spending_query(
     text: str, low: str, uid: str, svc: DBService

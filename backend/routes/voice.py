@@ -44,7 +44,7 @@ async def transcribe(
         transcript = await _client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_file,
-            language="en",  # auto-detects Hindi/English
+            # No language parameter — let Whisper auto-detect (supports Hindi + English)
         )
         return {"success": True, "text": transcript.text}
     except Exception as exc:
@@ -113,12 +113,46 @@ async def voice_process(
     audio_file = io.BytesIO(audio_bytes)
     audio_file.name = audio.filename or "recording.webm"
 
+    import time as _time
+
     try:
+        t_stt = _time.perf_counter()
         transcript = await _client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_file,
         )
+        stt_ms = (_time.perf_counter() - t_stt) * 1000.0
         transcribed_text = transcript.text.strip()
+
+        # ── Log STT cost ──────────────────────────────────────────────
+        # Whisper charges $0.006 per minute of audio.
+        # Estimate duration from file size (~16KB/sec for m4a at 128kbps).
+        try:
+            estimated_seconds = max(len(audio_bytes) / 16000, 1)
+            estimated_minutes = estimated_seconds / 60
+            # Convert to pseudo-tokens for cost tracking (1 "token" = cost equivalent)
+            stt_cost_usd = estimated_minutes * 0.006
+            settings = get_settings()
+            stt_cost_inr = stt_cost_usd * settings.INR_PER_USD
+
+            from services.usage_service import log_token_usage
+            from services.subscription_service import add_daily_cost
+            await log_token_usage(
+                db,
+                request_id=request_id,
+                user_id=user_id,
+                model="whisper-1",
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=int(estimated_seconds),  # track seconds as pseudo-tokens
+                endpoint="/voice/process:stt",
+                latency_ms=stt_ms,
+            )
+            await add_daily_cost(db, user_id, int(estimated_seconds), stt_cost_inr)
+            await db.commit()
+        except Exception:
+            logger.debug("Failed to log STT cost (non-fatal)")
+
     except Exception as exc:
         logger.exception("Voice pipeline: transcription failed (OpenAI unavailable)")
         return {
@@ -172,13 +206,42 @@ async def voice_process(
         try:
             # Clean markdown formatting for better TTS
             clean_text = _clean_for_tts(response_text)
+            t_tts = _time.perf_counter()
             tts_response = await _client.audio.speech.create(
                 model="tts-1",
                 voice=voice,
                 input=clean_text[:4096],
                 response_format="mp3",
             )
+            tts_ms = (_time.perf_counter() - t_tts) * 1000.0
             audio_base64 = base64.b64encode(tts_response.content).decode("utf-8")
+
+            # ── Log TTS cost ──────────────────────────────────────────
+            # TTS-1 charges $15 per 1M characters.
+            try:
+                char_count = len(clean_text[:4096])
+                tts_cost_usd = (char_count / 1_000_000) * 15.0
+                settings = get_settings()
+                tts_cost_inr = tts_cost_usd * settings.INR_PER_USD
+
+                from services.usage_service import log_token_usage
+                from services.subscription_service import add_daily_cost
+                await log_token_usage(
+                    db,
+                    request_id=request_id,
+                    user_id=user_id,
+                    model="tts-1",
+                    prompt_tokens=char_count,
+                    completion_tokens=0,
+                    total_tokens=char_count,
+                    endpoint="/voice/process:tts",
+                    latency_ms=tts_ms,
+                )
+                await add_daily_cost(db, user_id, char_count, tts_cost_inr)
+                await db.commit()
+            except Exception:
+                logger.debug("Failed to log TTS cost (non-fatal)")
+
         except Exception:
             logger.exception("Voice pipeline: TTS failed (non-fatal)")
 

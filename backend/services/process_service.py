@@ -66,6 +66,7 @@ async def process_input(
     request_id: str,
     user_timezone: ZoneInfo | None = None,
     user_name: str | None = None,
+    conversation_context: list[dict] | None = None,
 ) -> dict:
     input_text = input_text.strip()
     settings = get_settings()
@@ -162,9 +163,17 @@ async def process_input(
 
     t_total_start = time.perf_counter()
 
+    # ── Build conversation context for follow-up understanding ────────
+    if conversation_context is None:
+        try:
+            conversation_context = await _build_conversation_context(db, user_id)
+        except Exception:
+            logger.debug("Failed to build conversation context, proceeding without")
+            conversation_context = None
+
     t0 = time.perf_counter()
     try:
-        orch_list, orch_usage = await classify_llm(input_text)
+        orch_list, orch_usage = await classify_llm(input_text, conversation_context)
         orch_ms = (time.perf_counter() - t0) * 1000.0
         try:
             # Log the first item for backward compatibility
@@ -250,6 +259,7 @@ async def process_input(
                     plan_config=plan_config,
                     use_fallback_model=use_fallback_model,
                     user_name=user_name,
+                    request_id=request_id,
                 )
                 responses.append(response)
                 types.append(type_str)
@@ -288,6 +298,7 @@ async def process_input(
                 plan_config=plan_config,
                 use_fallback_model=use_fallback_model,
                 user_name=user_name,
+                request_id=request_id,
             )
             route_ms = (time.perf_counter() - t1) * 1000.0
             data = build_data_payload(orch, type_str)
@@ -353,3 +364,49 @@ async def process_input(
         request_id=request_id,
         data=data,
     )
+
+
+async def _build_conversation_context(
+    db: AsyncSession, user_id: str, max_turns: int = 3
+) -> list[dict] | None:
+    """Build conversation context from recent query logs for the LLM.
+
+    Returns a list of {role, content} dicts representing the last few
+    user/assistant exchanges, or None if no history.
+    """
+    from sqlalchemy import select, text as sql_text
+
+    try:
+        result = await db.execute(
+            sql_text(
+                "SELECT query, response, result_type "
+                "FROM query_logs "
+                "WHERE user_id = :uid "
+                "ORDER BY created_at DESC "
+                "LIMIT :lim"
+            ),
+            {"uid": user_id, "lim": max_turns},
+        )
+        rows = result.fetchall()
+    except Exception:
+        return None
+
+    if not rows:
+        return None
+
+    # Rows are newest-first, reverse for chronological order
+    context: list[dict] = []
+    for row in reversed(rows):
+        query, response, result_type = row[0], row[1], row[2]
+        if query:
+            context.append({"role": "user", "content": query})
+        if response:
+            # Compact the response for context (avoid huge payloads)
+            short_resp = response[:200] if len(response) > 200 else response
+            context.append({
+                "role": "assistant",
+                "content": f"[{result_type}] {short_resp}",
+            })
+
+    return context if context else None
+

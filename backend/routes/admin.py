@@ -19,6 +19,7 @@ from schemas_admin import (
     AdminUserRow,
     DailyUsageRow,
     MessageResponse,
+    ModelUsageRow,
     MonthlyUsageRow,
     RevenueSummaryResponse,
     TopUserRow,
@@ -313,7 +314,7 @@ async def user_detailed_usage(
     db: AsyncSession = Depends(get_db),
     _token: str = Depends(get_admin_session),
 ):
-    """Detailed token usage for a specific user."""
+    """Detailed token usage for a specific user with model-level breakdown."""
     settings = get_settings()
 
     # Daily usage for this user
@@ -362,11 +363,91 @@ async def user_detailed_usage(
         for r in category_rows
     ]
 
+    # Model-level breakdown with correct per-model pricing
+    model_stmt = text("""
+        SELECT
+            COALESCE(model, 'unknown') AS model_name,
+            COALESCE(endpoint, 'unknown') AS endpoint_name,
+            COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+            COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+            COALESCE(SUM(total_tokens), 0) AS total_tokens,
+            COUNT(*) AS total_requests,
+            MIN(created_at) AS first_used,
+            MAX(created_at) AS last_used
+        FROM usage_logs
+        WHERE user_id = :user_id
+        GROUP BY COALESCE(model, 'unknown'), COALESCE(endpoint, 'unknown')
+        ORDER BY total_tokens DESC
+    """)
+    model_rows = (await db.execute(model_stmt, {"user_id": user_id})).all()
+
+    model_breakdown = []
+    for r in model_rows:
+        model_name = str(r.model_name)
+        tokens = int(r.total_tokens)
+        prompt_tok = int(r.prompt_tokens)
+        comp_tok = int(r.completion_tokens)
+        cost_usd = _calculate_model_cost(model_name, prompt_tok, comp_tok, tokens)
+        model_breakdown.append(
+            ModelUsageRow(
+                model=model_name,
+                endpoint=str(r.endpoint_name),
+                prompt_tokens=prompt_tok,
+                completion_tokens=comp_tok,
+                total_tokens=tokens,
+                total_requests=int(r.total_requests),
+                cost_usd=round(cost_usd, 6),
+                cost_inr=round(cost_usd * settings.INR_PER_USD, 4),
+                last_used=str(r.last_used) if r.last_used else None,
+            )
+        )
+
     return UserDetailedUsageResponse(
         user_id=user_id,
         daily_usage=daily_usage,
         category_usage=category_usage,
+        model_breakdown=model_breakdown,
     )
+
+
+# ── Per-model cost calculation ─────────────────────────────────────────
+
+# Pricing per model (USD)
+_MODEL_PRICING = {
+    # OpenAI
+    "gpt-4o-mini": {"input_per_1k": 0.00015, "output_per_1k": 0.0006},
+    "gpt-4o": {"input_per_1k": 0.005, "output_per_1k": 0.015},
+    # Gemini
+    "gemini-2.0-flash": {"input_per_1k": 0.0001, "output_per_1k": 0.0004},
+    "gemini-1.5-flash": {"input_per_1k": 0.000075, "output_per_1k": 0.0003},
+    # Whisper STT: $0.006/min, tracked as seconds in total_tokens
+    "whisper-1": {"per_second": 0.006 / 60},
+    # TTS: $15/1M chars, tracked as char_count in total_tokens
+    "tts-1": {"per_char": 15.0 / 1_000_000},
+}
+
+
+def _calculate_model_cost(
+    model: str, prompt_tokens: int, completion_tokens: int, total_tokens: int
+) -> float:
+    """Calculate USD cost for a specific model's usage."""
+    pricing = _MODEL_PRICING.get(model)
+    if not pricing:
+        # Fallback: generic cost
+        return (total_tokens / 1000) * 0.002
+
+    if "per_second" in pricing:
+        # Whisper: total_tokens = seconds of audio
+        return total_tokens * pricing["per_second"]
+
+    if "per_char" in pricing:
+        # TTS: total_tokens = character count
+        return total_tokens * pricing["per_char"]
+
+    # Standard LLM: input + output pricing
+    input_cost = (prompt_tokens / 1000) * pricing.get("input_per_1k", 0)
+    output_cost = (completion_tokens / 1000) * pricing.get("output_per_1k", 0)
+    return input_cost + output_cost
 
 
 # ═══════════════════════════════════════════════════════════════════════

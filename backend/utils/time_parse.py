@@ -25,6 +25,23 @@ _DAY_NAMES = {
     "sunday": 6, "sun": 6,
 }
 
+# Common misspellings/variations of "tomorrow" (LLMs often produce these)
+_TOMORROW_VARIANTS = frozenset({
+    "tomorrow", "tommorow", "tommorrow", "tomorow", "tomorrw",
+    "tmrw", "tmr", "tmrow", "tommarow", "tmmrw", "tomorw",
+    "2morrow", "2mrw", "tomoro", "tommorow",
+})
+
+# Common misspellings/variations of "today"
+_TODAY_VARIANTS = frozenset({
+    "today", "2day", "tday",
+})
+
+# Common misspellings/variations of "yesterday"  
+_YESTERDAY_VARIANTS = frozenset({
+    "yesterday", "ysterday", "yestrday", "yesterdy",
+})
+
 _MONTH_NAMES = {
     "january": 1, "jan": 1,
     "february": 2, "feb": 2,
@@ -377,14 +394,21 @@ def parse_time(
     low = raw.lower().strip()
 
     # ── 2. "tomorrow" / "kal" prefix ───────────────────────────────────
-    use_tomorrow = "tomorrow" in low
+    # Check for any variant of "tomorrow" (including misspellings like "tommorow")
+    words = low.split()
+    use_tomorrow = any(w in _TOMORROW_VARIANTS for w in words) or "tomorrow" in low
     kal_match = any(w in low.split() for w in _HINDI_TOMORROW)
     parso_match = any(w in low.split() for w in _HINDI_DAY_AFTER)
     aaj_match = any(w in low.split() for w in _HINDI_TODAY)
 
     if use_tomorrow or kal_match:
-        rest = re.sub(r"\bto-?morrow\b", " ", low, flags=re.I).strip()
+        # Strip ALL tomorrow-like words (including misspellings)
+        rest = low
+        for variant in _TOMORROW_VARIANTS:
+            rest = re.sub(r"\b" + re.escape(variant) + r"\b", " ", rest, flags=re.I)
+        rest = re.sub(r"\bto-?morrow\b", " ", rest, flags=re.I)
         rest = _strip_hindi_day_words(rest)
+        rest = rest.strip()
         tod = _detect_hindi_tod(rest)
         rest = _strip_hindi_tod(rest)
         rest = re.sub(r"^(?:at|ko|pe)\s+", "", rest).strip()
