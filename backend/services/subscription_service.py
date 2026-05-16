@@ -202,27 +202,60 @@ def check_reminder_time_restriction(
     plan: PlanConfig,
     reminder_time: datetime,
 ) -> LimitCheckResult:
-    """Reject reminders > 24h in the future if plan restricts to 24h only."""
-    if not plan.reminder_24h_only:
+    """Reject reminders beyond the plan's max scheduling horizon."""
+    # 0 means unlimited
+    if plan.reminder_max_days == 0:
         return _ok()
 
     now = datetime.now(timezone.utc)
-    if reminder_time > now + timedelta(hours=24):
-        min_plan = min_plan_for_feature("long_term_reminder")
-        if min_plan:
-            msg = (
-                f"📅 Long-term reminders (beyond 24h) are a premium feature!\n\n"
-                f"🔓 Unlock with {min_plan.display_name} — schedule reminders days, "
-                f"weeks, or months ahead for just ₹{min_plan.price_inr_monthly}/month."
-            )
+    max_delta = timedelta(days=plan.reminder_max_days)
+
+    if reminder_time <= now + max_delta:
+        return _ok()
+
+    # Build a human-readable label for the current plan's horizon
+    days = plan.reminder_max_days
+    if days <= 1:
+        horizon_label = "24h"
+    elif days <= 7:
+        horizon_label = "1 week"
+    elif days <= 30:
+        horizon_label = "1 month"
+    elif days <= 180:
+        horizon_label = "6 months"
+    else:
+        horizon_label = "1 year"
+
+    nxt = get_next_upgrade(plan.name)
+    if nxt:
+        # Build a label for what the next plan unlocks
+        nxt_days = nxt.reminder_max_days
+        if nxt_days == 0:
+            nxt_horizon = "unlimited"
+        elif nxt_days <= 1:
+            nxt_horizon = "24 hours"
+        elif nxt_days <= 7:
+            nxt_horizon = "1 week"
+        elif nxt_days <= 30:
+            nxt_horizon = "1 month"
+        elif nxt_days <= 180:
+            nxt_horizon = "6 months"
         else:
-            msg = "📅 Long-term reminders require a higher plan."
-        return _denied(
-            reason="reminder_24h_restriction",
-            message=msg,
-            upgrade_plan=min_plan.name if min_plan else None,
+            nxt_horizon = "1 year"
+
+        msg = (
+            f"📅 Long-term reminders (beyond {horizon_label}) are a premium feature!\n\n"
+            f"🔓 Unlock with {nxt.display_name} — schedule reminders up to "
+            f"{nxt_horizon} ahead for just ₹{nxt.price_inr_monthly}/month."
         )
-    return _ok()
+    else:
+        msg = f"📅 Reminders beyond {horizon_label} require a higher plan."
+
+    return _denied(
+        reason="reminder_time_restriction",
+        message=msg,
+        upgrade_plan=nxt.name if nxt else None,
+    )
 
 
 async def check_monthly_cost_limit(

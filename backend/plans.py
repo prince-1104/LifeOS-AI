@@ -24,7 +24,7 @@ class PlanConfig:
     memory_writes_per_day: int
     memory_storage_limit: int  # max memories stored (FIFO eviction beyond this)
     reminders_per_day: int
-    reminder_24h_only: bool  # if True, reject reminders > 24h in the future
+    reminder_max_days: int  # max days into the future a reminder can be set (0 = unlimited)
 
     # ── Monthly cost budget (INR) ─────────────────────────────────────
     monthly_cost_budget_inr: float
@@ -33,7 +33,7 @@ class PlanConfig:
     voice_input: bool
     premium_tts: bool
     priority_processing: bool
-    long_term_reminder: bool  # reminders beyond 24h
+    long_term_reminder: bool  # reminders beyond the plan's max horizon
 
     # ── Input length limit (characters per message) ────────────────────
     max_input_chars: int = 500  # prevents token waste on long messages
@@ -53,7 +53,7 @@ PLANS: dict[str, PlanConfig] = {
         memory_writes_per_day=5,
         memory_storage_limit=10,
         reminders_per_day=5,
-        reminder_24h_only=True,
+        reminder_max_days=1,  # 24 hours
         monthly_cost_budget_inr=20.0,
         voice_input=False,
         premium_tts=False,
@@ -70,7 +70,7 @@ PLANS: dict[str, PlanConfig] = {
         memory_writes_per_day=10,
         memory_storage_limit=20,
         reminders_per_day=10,
-        reminder_24h_only=True,
+        reminder_max_days=7,  # 7 days
         monthly_cost_budget_inr=20.0,
         voice_input=False,
         premium_tts=False,
@@ -87,7 +87,7 @@ PLANS: dict[str, PlanConfig] = {
         memory_writes_per_day=15,
         memory_storage_limit=50,
         reminders_per_day=15,
-        reminder_24h_only=False,
+        reminder_max_days=30,  # 1 month
         monthly_cost_budget_inr=35.0,
         voice_input=False,
         premium_tts=False,
@@ -105,7 +105,7 @@ PLANS: dict[str, PlanConfig] = {
         memory_writes_per_day=50,
         memory_storage_limit=500,
         reminders_per_day=50,
-        reminder_24h_only=False,
+        reminder_max_days=180,  # 6 months
         monthly_cost_budget_inr=200.0,
         voice_input=True,
         premium_tts=True,
@@ -121,7 +121,7 @@ PLANS: dict[str, PlanConfig] = {
         memory_writes_per_day=150,
         memory_storage_limit=2000,
         reminders_per_day=150,
-        reminder_24h_only=False,
+        reminder_max_days=365,  # 1 year
         monthly_cost_budget_inr=400.0,
         voice_input=True,
         premium_tts=True,
@@ -137,7 +137,7 @@ PLANS: dict[str, PlanConfig] = {
         memory_writes_per_day=250,
         memory_storage_limit=5000,
         reminders_per_day=250,
-        reminder_24h_only=False,
+        reminder_max_days=365,  # 1 year
         monthly_cost_budget_inr=600.0,
         voice_input=True,
         premium_tts=True,
@@ -153,7 +153,7 @@ PLANS: dict[str, PlanConfig] = {
         memory_writes_per_day=500,
         memory_storage_limit=10000,
         reminders_per_day=500,
-        reminder_24h_only=False,
+        reminder_max_days=365,  # 1 year
         monthly_cost_budget_inr=1000.0,
         voice_input=True,
         premium_tts=True,
