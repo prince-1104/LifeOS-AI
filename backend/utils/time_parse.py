@@ -329,6 +329,34 @@ def _extract_month_day(s: str) -> tuple[int, int, str] | None:
     return None
 
 
+def _extract_day_month(s: str) -> tuple[int, int, str] | None:
+    """Extract 'Day Month' (day-first) and return (month, day, remaining_string).
+
+    Matches: "22th may 3pm", "15 june at 10am", "on 1st april 9am"
+    Common in Indian English where day comes before month.
+    """
+    low = s.strip().lower()
+    # Strip optional leading "on"
+    low = re.sub(r"^on\s+", "", low)
+
+    # Match: day (with optional ordinal) then month name
+    m = re.match(
+        r"^(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)\s*(.*)?$",
+        low,
+        re.I,
+    )
+    if m:
+        day = int(m.group(1))
+        month_word = m.group(2).lower()
+        rest = (m.group(3) or "").strip()
+        month_num = _MONTH_NAMES.get(month_word)
+        if month_num and 1 <= day <= 31:
+            # Strip optional "at" from the remaining time string
+            rest = re.sub(r"^(?:at\s+)", "", rest).strip()
+            return month_num, day, rest
+    return None
+
+
 def _get_next_weekday(base_date: date, target_weekday: int) -> date:
     """Get the next occurrence of target_weekday from base_date (inclusive of today)."""
     days_ahead = (target_weekday - base_date.weekday()) % 7
@@ -473,6 +501,22 @@ def parse_time(
             target_date = date(year + 1, month_num, actual_day)
         return _make_utc(target_date, hm[0], hm[1], tz, now_utc)
 
+    # ── 3b. Day + month (day-first): "22th may 3pm", "15 june at 10am" ─
+    dm = _extract_day_month(low)
+    if dm is not None:
+        month_num, day, time_rest = dm
+        hm = _parse_hour_minute(time_rest) if time_rest else None
+        if hm is None:
+            hm = (9, 0)  # default to 9 AM
+        import calendar
+        year = now_local.year
+        max_day = calendar.monthrange(year, month_num)[1]
+        actual_day = min(day, max_day)
+        target_date = date(year, month_num, actual_day)
+        if target_date < base_date:
+            target_date = date(year + 1, month_num, actual_day)
+        return _make_utc(target_date, hm[0], hm[1], tz, now_utc)
+
     # ── 4. Day name: "Monday 10am", "next friday 3pm" ────────────────
     day_result = _extract_day_name(low)
     if day_result is not None:
@@ -487,6 +531,10 @@ def parse_time(
     dom = _extract_date_of_month(low)
     if dom is not None:
         day_num, time_rest = dom
+        # Strip any trailing month name the regex may have captured
+        for mname in _MONTH_NAMES:
+            time_rest = re.sub(r"\b" + re.escape(mname) + r"\b", "", time_rest, flags=re.I).strip()
+        time_rest = re.sub(r"^(?:at\s+)", "", time_rest).strip()
         hm = _parse_hour_minute(time_rest) if time_rest else None
         if hm is None:
             hm = (9, 0)  # default to 9 AM
