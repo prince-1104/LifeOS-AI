@@ -54,11 +54,12 @@ Rules:
   * ANY question about past/existing data = "query"
 - Greetings like "hi", "hello", "hey", "good morning", "good evening", "sup", "yo", "what's up" etc. are "greeting" type.
 
-CONVERSATION CONTEXT:
+CONVERSATION CONTEXT & CORRECTIONS:
 - You may receive previous messages as context. Use them to understand follow-up messages.
-- When a user says something like "change the time", "make it 11pm", "update it", "cancel that", etc., look at the previous messages to understand WHAT they are referring to.
-- If the previous message was about a reminder and the user says "change the time to 11pm", classify as "reminder_update" with the new time and include the original task from context.
-- If the user refers to something from context, ALWAYS extract the full intent.
+- When a user says something like "change the time", "make it 11pm", "remind me today", "no, today not tomorrow", "update it", "cancel that", etc., look at the previous messages to understand WHAT they are referring to.
+- If the previous message was about a reminder and the user says "remind me today instead" or "make it today", classify as "reminder_update".
+- CRITICAL FOR REMINDER UPDATES: If the user only changes the DATE (e.g., "make it today", "not tomorrow"), you MUST carry over the TIME from the previous context (e.g., if previous was 4pm, new time is "today 4pm").
+- NEVER put words like "not tomorrow", "instead", or "actually" into the "task" field. The task should be the actual activity (e.g., "tea", "gym").
 - For time strings, ALWAYS use the correct spelling (e.g. "tomorrow" not "tommorow").
 
 MULTI-ITEM MESSAGES:
@@ -75,26 +76,6 @@ Output:
   "type": "greeting"
 }
 
-Input: "hello"
-Output:
-{
-  "type": "greeting"
-}
-
-Input: "good morning"
-Output:
-{
-  "type": "greeting"
-}
-
-Input: "remember my keys are under the table"
-Output:
-{
-  "type": "memory",
-  "content": "keys under table",
-  "tags": ["keys", "location"]
-}
-
 Input: "where are my keys"
 Output:
 {
@@ -102,81 +83,11 @@ Output:
   "query": "keys location"
 }
 
-Input: "how much I have spend for AC"
-Output:
-{
-  "type": "query",
-  "query": "how much spent on AC"
-}
-
-Input: "show me AC expenses"
-Output:
-{
-  "type": "query",
-  "query": "AC expenses"
-}
-
-Input: "total spend in today"
-Output:
-{
-  "type": "query",
-  "query": "total spend today"
-}
-
 Input: "how much did i spend this week"
 Output:
 {
   "type": "query",
   "query": "total spend this week"
-}
-
-Input: "how much did i spend this month"
-Output:
-{
-  "type": "query",
-  "query": "total spend this month"
-}
-
-Input: "where am I spending more"
-Output:
-{
-  "type": "query",
-  "query": "where spending more top categories"
-}
-
-Input: "what are my reminders for Monday"
-Output:
-{
-  "type": "query",
-  "query": "reminders for Monday"
-}
-
-Input: "what meetings do I have tomorrow"
-Output:
-{
-  "type": "query",
-  "query": "meetings tomorrow"
-}
-
-Input: "show my pending reminders"
-Output:
-{
-  "type": "query",
-  "query": "pending reminders"
-}
-
-Input: "how much income this month"
-Output:
-{
-  "type": "query",
-  "query": "income this month"
-}
-
-Input: "give me a spending summary"
-Output:
-{
-  "type": "query",
-  "query": "spending summary"
 }
 
 Input: "I spent 200 on food"
@@ -188,24 +99,6 @@ Output:
   "category": "food"
 }
 
-Input: "I paid 200 for food"
-Output:
-{
-  "type": "finance",
-  "amount": 200,
-  "transaction_type": "expense",
-  "category": "food"
-}
-
-Input: "I received 1000 from sumit"
-Output:
-{
-  "type": "finance",
-  "amount": 1000,
-  "transaction_type": "income",
-  "source": "sumit"
-}
-
 Input: "remind me at 7pm to go gym"
 Output:
 {
@@ -214,100 +107,12 @@ Output:
   "time": "19:00"
 }
 
-Input: "remind me after 2 minutes to switch off light"
-Output:
-{
-  "type": "reminder",
-  "task": "switch off light",
-  "time": "2 minutes"
-}
-
-Input: "remind me in 1 hour to call mom"
-Output:
-{
-  "type": "reminder",
-  "task": "call mom",
-  "time": "1 hour"
-}
-
 Input: "set a reminder for tomorrow 6:30am to exercise"
 Output:
 {
   "type": "reminder",
   "task": "exercise",
   "time": "tomorrow 6:30am"
-}
-
-Input: "on 28th I have a interview schedule at 10:30 am"
-Output:
-{
-  "type": "reminder",
-  "task": "Interview",
-  "time": "28th 10:30am"
-}
-
-Input: "28 ko bangalore jana h 2 pm ko"
-Output:
-{
-  "type": "reminder",
-  "task": "go to Bangalore",
-  "time": "28th 2pm"
-}
-
-Input: "Monday meeting at 10am"
-Output:
-{
-  "type": "reminder",
-  "task": "meeting",
-  "time": "Monday 10am"
-}
-
-Input: "May 5 doctor appointment at 3pm"
-Output:
-{
-  "type": "reminder",
-  "task": "doctor appointment",
-  "time": "May 5 3pm"
-}
-
-Input: "kal sham 5pm ko chai peeni h"
-Output:
-{
-  "type": "reminder",
-  "task": "chai peeni",
-  "time": "kal 5pm"
-}
-
-Input: "kal subah 7 baje exercise karna h"
-Output:
-{
-  "type": "reminder",
-  "task": "exercise",
-  "time": "kal subah 7"
-}
-
-Input: "aaj raat 10 baje medicine leni h"
-Output:
-{
-  "type": "reminder",
-  "task": "medicine leni",
-  "time": "aaj raat 10"
-}
-
-Input: "parso dopahar 2 baje meeting h"
-Output:
-{
-  "type": "reminder",
-  "task": "meeting",
-  "time": "parso dopahar 2"
-}
-
-Input: "kal sham ko 5 baje gym jana h"
-Output:
-{
-  "type": "reminder",
-  "task": "gym jana",
-  "time": "kal sham 5"
 }
 
 Input: "spend 10 for tea 120 food 550 in shopping"
@@ -320,45 +125,7 @@ Output:
   ]
 }
 
-Input: "spent 50 on snacks and remind me at 6pm to buy groceries"
-Output:
-{
-  "items": [
-    {"type": "finance", "amount": 50, "transaction_type": "expense", "category": "snacks"},
-    {"type": "reminder", "task": "buy groceries", "time": "18:00"}
-  ]
-}
-
-Input: "tea 20 coffee 15 lunch 150"
-Output:
-{
-  "items": [
-    {"type": "finance", "amount": 20, "transaction_type": "expense", "category": "tea"},
-    {"type": "finance", "amount": 15, "transaction_type": "expense", "category": "coffee"},
-    {"type": "finance", "amount": 150, "transaction_type": "expense", "category": "lunch"}
-  ]
-}
-
-Input: "auto 30 bus 20 metro 40"
-Output:
-{
-  "items": [
-    {"type": "finance", "amount": 30, "transaction_type": "expense", "category": "auto"},
-    {"type": "finance", "amount": 20, "transaction_type": "expense", "category": "bus"},
-    {"type": "finance", "amount": 40, "transaction_type": "expense", "category": "metro"}
-  ]
-}
-
-Input: "received 5000 from dad and spent 200 on groceries"
-Output:
-{
-  "items": [
-    {"type": "finance", "amount": 5000, "transaction_type": "income", "source": "dad"},
-    {"type": "finance", "amount": 200, "transaction_type": "expense", "category": "groceries"}
-  ]
-}
-
-FOLLOW-UP EXAMPLES (when previous context is about a reminder):
+FOLLOW-UP AND CORRECTION EXAMPLES (Context usage):
 
 Previous context: User set reminder "train booking" at 9:00 AM on 27th May
 Input: "Change the time. Keep it on 11pm"
@@ -367,6 +134,24 @@ Output:
   "type": "reminder_update",
   "task": "train booking",
   "time": "27th 11pm"
+}
+
+Previous context: User set reminder "tea" at 4:00 PM tomorrow
+Input: "reminde me today"
+Output:
+{
+  "type": "reminder_update",
+  "task": "tea",
+  "time": "today 16:00"
+}
+
+Previous context: User set reminder "tea" at 4:00 PM tomorrow
+Input: "reminde me today not tommorow"
+Output:
+{
+  "type": "reminder_update",
+  "task": "tea",
+  "time": "today 16:00"
 }
 
 Previous context: User set reminder "gym" at 7:00 AM tomorrow

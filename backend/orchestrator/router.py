@@ -142,6 +142,13 @@ async def route(
         # ── Follow-up reminder modification ───────────────────────────
         # Treat as a new reminder with the updated time/task from context
         if orch.task and orch.time:
+            # First, try to cancel the previous reminder
+            try:
+                from services.reminder_service import cancel_previous_reminder_by_task
+                await cancel_previous_reminder_by_task(db, user_id, str(orch.task))
+            except Exception:
+                logger.exception("Failed to cancel previous reminder during update")
+
             # Re-route as a regular reminder
             orch.type = "reminder"
             text = await reminder_agent.process(
@@ -151,7 +158,8 @@ async def route(
                 user_id,
                 user_timezone=user_timezone,
             )
-            return text, "reminder"
+            # Prepend a small acknowledgement that it was updated
+            return f"✅ Updated! {text}", "reminder"
         else:
             return (
                 "I understand you want to update something, but I need more details. "
