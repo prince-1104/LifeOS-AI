@@ -64,8 +64,10 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = "admin@123"
     ADMIN_SESSION_EXPIRY_HOURS: int = 24
 
-    # Cost per 1K tokens (USD)
-    MODEL_COST_PER_1K: float = 0.002
+    # Cost per 1K tokens (USD) — blended rate for gpt-4o-mini
+    # Input: $0.15/1M = $0.00015/1K  |  Output: $0.60/1M = $0.0006/1K
+    # Weighted average (80% input, 20% output): $0.00024 → rounded up
+    MODEL_COST_PER_1K: float = 0.00025
 
     # ── OneSignal push notifications ─────────────────────────────────
     ONESIGNAL_APP_ID: str = ""
@@ -78,7 +80,7 @@ class Settings(BaseSettings):
     CASHFREE_ENV: str = "sandbox"  # "sandbox" or "production"
 
     # ── Currency conversion ──────────────────────────────────────────
-    INR_PER_USD: float = 83.0
+    INR_PER_USD: float = 96.0
 
 
 @lru_cache

@@ -50,9 +50,9 @@ PLANS: dict[str, PlanConfig] = {
         price_inr_monthly=0,
         price_inr_yearly=0,
         daily_requests=15,
-        memory_writes_per_day=3,
+        memory_writes_per_day=5,
         memory_storage_limit=10,
-        reminders_per_day=2,
+        reminders_per_day=5,
         reminder_24h_only=True,
         monthly_cost_budget_inr=20.0,
         voice_input=False,
@@ -67,9 +67,9 @@ PLANS: dict[str, PlanConfig] = {
         price_inr_monthly=29,
         price_inr_yearly=278,  # ~20% off
         daily_requests=40,
-        memory_writes_per_day=5,
+        memory_writes_per_day=10,
         memory_storage_limit=20,
-        reminders_per_day=5,
+        reminders_per_day=10,
         reminder_24h_only=True,
         monthly_cost_budget_inr=20.0,
         voice_input=False,
@@ -84,9 +84,9 @@ PLANS: dict[str, PlanConfig] = {
         price_inr_monthly=49,
         price_inr_yearly=470,  # ~20% off
         daily_requests=80,
-        memory_writes_per_day=10,
+        memory_writes_per_day=15,
         memory_storage_limit=50,
-        reminders_per_day=10,
+        reminders_per_day=15,
         reminder_24h_only=False,
         monthly_cost_budget_inr=35.0,
         voice_input=False,
@@ -95,23 +95,7 @@ PLANS: dict[str, PlanConfig] = {
         long_term_reminder=True,
         max_input_chars=300,
     ),
-    "pro_99": PlanConfig(
-        name="pro_99",
-        display_name="₹99 Pro",
-        price_inr_monthly=99,
-        price_inr_yearly=950,  # ~20% off
-        daily_requests=150,
-        memory_writes_per_day=20,
-        memory_storage_limit=100,
-        reminders_per_day=20,
-        reminder_24h_only=False,
-        monthly_cost_budget_inr=60.0,
-        voice_input=True,
-        premium_tts=False,
-        priority_processing=False,
-        long_term_reminder=True,
-        max_input_chars=500,
-    ),
+
     "premium_499": PlanConfig(
         name="premium_499",
         display_name="₹499 Premium",
@@ -212,7 +196,7 @@ def get_plan(plan_name: str) -> PlanConfig:
 
 def get_next_upgrade(current_plan: str) -> PlanConfig | None:
     """Return the next tier up from the current plan, or None if already max."""
-    order = ["free", "basic_29", "standard_49", "pro_99", "premium_499", "ultra_999", "elite_1299", "apex_1999"]
+    order = ["free", "basic_29", "standard_49", "premium_499", "ultra_999", "elite_1299", "apex_1999"]
     try:
         idx = order.index(current_plan)
     except ValueError:
@@ -224,14 +208,14 @@ def get_next_upgrade(current_plan: str) -> PlanConfig | None:
 
 def get_all_plans() -> list[PlanConfig]:
     """Return all plans in tier order (cheapest first)."""
-    order = ["free", "basic_29", "standard_49", "pro_99", "premium_499", "ultra_999", "elite_1299", "apex_1999"]
+    order = ["basic_29", "standard_49", "premium_499", "ultra_999", "elite_1299", "apex_1999"]
     return [PLANS[k] for k in order]
 
 
 # ── Feature name → minimum plan mapping ──────────────────────────────
 
 FEATURE_MIN_PLAN: dict[str, str] = {
-    "voice_input": "pro_99",
+    "voice_input": "premium_499",
     "premium_tts": "premium_499",
     "priority_processing": "premium_499",
     "long_term_reminder": "standard_49",

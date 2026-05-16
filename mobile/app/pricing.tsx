@@ -67,7 +67,7 @@ function PlanCard({
     ? Math.round(basePrice - (basePrice * discountPercent) / 100)
     : basePrice;
 
-  const isPopular = plan.name === "pro_99" || plan.name === "standard_49";
+  const isPopular = plan.name === "premium_499" || plan.name === "standard_49";
   const features = getPlanFeatures(plan);
 
   return (

@@ -108,7 +108,7 @@ function ReminderCard({
         >
           <Ionicons
             name={getStatusIcon(item.status) as any}
-            size={20}
+            size={18}
             color={statusColor}
           />
         </View>
@@ -641,22 +641,23 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginLeft: 34,
   },
-  list: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: 40 },
-  // Card
+  list: { padding: Spacing.md, gap: 6, paddingBottom: 40 },
+  // Card — compact to fit many reminders on screen
   card: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: Colors.bgElevated,
-    borderRadius: Radius.xl,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.glassBorder,
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardLeft: {
     flexDirection: "row",
@@ -665,18 +666,18 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
   cardInfo: { flex: 1 },
   cardTask: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.sm,
     fontWeight: "600",
     color: Colors.textPrimary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   cardMeta: {
     flexDirection: "row",

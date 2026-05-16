@@ -173,6 +173,29 @@ function getTypeIcon(type: string): string {
   }
 }
 
+/** Format raw LLM time strings like "16:30" → "4:30 PM", "tomorrow 6:30am" → "Tomorrow 6:30 AM" */
+function formatReminderDataTime(raw: string): string {
+  if (!raw) return raw;
+  // Try to parse 24h format "HH:MM" or "H:MM"
+  const m24 = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (m24) {
+    const h = parseInt(m24[1], 10);
+    const min = m24[2];
+    if (h >= 0 && h <= 23) {
+      const period = h >= 12 ? "PM" : "AM";
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      return `${h12}:${min} ${period}`;
+    }
+  }
+  // Already has am/pm — just clean up and capitalize
+  if (/\d+\s*(am|pm)/i.test(raw)) {
+    return raw.replace(/(am|pm)/gi, (m) => m.toUpperCase());
+  }
+  // Other formats (e.g. "tomorrow 6:30am", "Monday 10am") — capitalize first letter
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+
 function getTypeColor(type: string): string {
   switch (type) {
     case "finance": return Colors.success;
@@ -326,7 +349,7 @@ function MessageBubble({ row }: { row: ChatRow }) {
           {a.data.time && (
             <View style={styles.dataRow}>
               <Text style={styles.dataLabel}>Time</Text>
-              <Text style={styles.dataValue}>{a.data.time}</Text>
+              <Text style={styles.dataValue}>{formatReminderDataTime(a.data.time)}</Text>
             </View>
           )}
         </View>

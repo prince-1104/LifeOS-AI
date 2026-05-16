@@ -87,7 +87,6 @@ export function ChatBox() {
           free: 100,
           basic_29: 200,
           standard_49: 300,
-          pro_99: 500,
           premium_499: 500,
           ultra_999: 500,
           elite_1299: 500,

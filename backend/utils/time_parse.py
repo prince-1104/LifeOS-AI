@@ -268,11 +268,22 @@ def _extract_date_of_month(s: str) -> tuple[int, str] | None:
     """Extract a day-of-month number and return (day, remaining_string).
 
     Matches: "28th", "1st", "2nd", "3rd", "15th", "on 28th", "28"
+    Does NOT match bare "HH:MM" patterns like "16:30" (those are times).
     """
+    stripped = s.strip()
+
+    # Reject strings that look like time expressions (not dates):
+    # - "16:30", "9:00" — HH:MM format
+    # - "7pm", "10am", "4:30pm" — number with am/pm suffix
+    if re.match(r"^\d{1,2}:\d{2}", stripped):
+        return None
+    if re.match(r"^\d{1,2}\s*(?:am|pm|a\.m\.|p\.m\.)", stripped, re.I):
+        return None
+
     # "28th at 10:30am" → day=28, rest="10:30am"
     m = re.match(
         r"^(?:on\s+)?(\d{1,2})(?:st|nd|rd|th)?\s*(?:at\s+)?(.*)$",
-        s.strip(),
+        stripped,
         re.I,
     )
     if m:

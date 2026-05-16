@@ -240,8 +240,8 @@ export function PricingCards({ plans, currentPlan, onSelectPlan, loading, discou
   const [modalPlans, setModalPlans] = useState<PlanInfo[]>([]);
   const [modalType, setModalType] = useState<'basic' | 'premium' | null>(null);
 
-  const freePlans = plans.filter(p => p.name === "free");
-  const basicGroup = plans.filter(p => ["basic_29", "standard_49", "pro_99"].includes(p.name));
+  const basic29 = plans.find(p => p.name === "basic_29");
+  const standard49 = plans.find(p => p.name === "standard_49");
   const proPlan = plans.find(p => p.name === "premium_499"); // Pro is the 499 plan now
   const premiumGroup = plans.filter(p => ["ultra_999", "elite_1299", "apex_1999"].includes(p.name));
 
@@ -283,9 +283,9 @@ export function PricingCards({ plans, currentPlan, onSelectPlan, loading, discou
 
         {/* ── 4 Category Grid ──────────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-[1400px] mx-auto">
-          {freePlans.length > 0 && (
+          {basic29 && (
               <SinglePlanCard 
-                  plan={freePlans[0]}
+                  plan={basic29}
                   cycle={cycle}
                   currentPlan={currentPlan}
                   onSelectPlan={onSelectPlan}
@@ -295,12 +295,15 @@ export function PricingCards({ plans, currentPlan, onSelectPlan, loading, discou
               />
           )}
 
-          {basicGroup.length > 0 && (
-              <GroupCard 
-                  title="Basic Series"
-                  subPlans={basicGroup}
-                  groupType="basic"
-                  onOpenModal={handleOpenModal}
+          {standard49 && (
+              <SinglePlanCard 
+                  plan={standard49}
+                  cycle={cycle}
+                  currentPlan={currentPlan}
+                  onSelectPlan={onSelectPlan}
+                  loading={loading}
+                  discountPercent={discountPercent}
+                  applicablePlans={applicablePlans}
               />
           )}
 

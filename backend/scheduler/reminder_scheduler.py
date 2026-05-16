@@ -32,6 +32,11 @@ scheduler = AsyncIOScheduler()
 _push_sent: set[str] = set()
 
 
+# Max individual push notifications per user per poll cycle.
+# Beyond this, send a single grouped summary to avoid flooding.
+_MAX_INDIVIDUAL_PUSHES = 3
+
+
 async def process_due_reminders() -> None:
     now = datetime.now(timezone.utc)
     async with async_session() as session:
@@ -44,28 +49,59 @@ async def process_due_reminders() -> None:
         if not rows:
             return
 
+        # Group by user to prevent notification flooding
+        user_reminders: dict[str, list[tuple[str, str]]] = {}
         for rid, uid, task in rows:
             rid_str = str(rid)
             if rid_str in _push_sent:
-                continue  # Already sent push for this one
+                continue
+            user_reminders.setdefault(uid, []).append((rid_str, task))
 
-            # Send push using external_user_id (= Clerk user_id)
-            sent = await send_push(
-                external_user_ids=[uid],
-                title="⏰ Cortexa Reminder",
-                message=task,
-            )
-            _push_sent.add(rid_str)
+        for uid, items in user_reminders.items():
+            if not items:
+                continue
 
-            if sent:
-                logger.info("Push sent for reminder %s → user %s", rid, uid)
+            if len(items) <= _MAX_INDIVIDUAL_PUSHES:
+                # Send individual notifications
+                for rid_str, task in items:
+                    sent = await send_push(
+                        external_user_ids=[uid],
+                        title="⏰ Cortexa Reminder",
+                        message=task,
+                    )
+                    _push_sent.add(rid_str)
+                    if sent:
+                        logger.info("Push sent for reminder %s → user %s", rid_str, uid)
+                    else:
+                        logger.warning(
+                            "Push not delivered for reminder %s (user %s)",
+                            rid_str, uid,
+                        )
             else:
-                logger.warning(
-                    "Push not delivered for reminder %s (user %s) — "
-                    "user may not have subscribed yet.",
-                    rid,
-                    uid,
+                # Too many — send a single grouped summary
+                task_list = ", ".join(task for _, task in items[:5])
+                extra = len(items) - 5
+                message = task_list
+                if extra > 0:
+                    message += f" and {extra} more"
+
+                sent = await send_push(
+                    external_user_ids=[uid],
+                    title=f"⏰ {len(items)} Reminders Due",
+                    message=message,
                 )
+                for rid_str, _ in items:
+                    _push_sent.add(rid_str)
+
+                if sent:
+                    logger.info(
+                        "Grouped push sent for %d reminders → user %s",
+                        len(items), uid,
+                    )
+                else:
+                    logger.warning(
+                        "Grouped push not delivered for user %s", uid,
+                    )
 
         # NOTE: Reminders are NOT marked as done here.
         # The user acknowledges them via the frontend "Done" button
