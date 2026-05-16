@@ -354,6 +354,16 @@ async def create_subscription(
 
             session_id = order_data.get("payment_session_id", "")
 
+            # If no direct payment_link, construct the Cashfree hosted checkout URL
+            # from payment_session_id (critical for mobile WebBrowser redirect)
+            if not payment_link and session_id:
+                settings = get_settings()
+                if settings.CASHFREE_ENV == "production":
+                    payment_link = f"https://payments.cashfree.com/pgbillpay/checkout?payment_session_id={session_id}"
+                else:
+                    payment_link = f"https://sandbox.cashfree.com/pgbillpay/checkout?payment_session_id={session_id}"
+                print(f"[CASHFREE] Constructed checkout URL: {payment_link}", flush=True)
+
         # Save order ID to user record for webhook matching
         user.stripe_subscription_id = order_id  # reusing column for cashfree order id
         # Store the plan info so verify endpoint doesn't depend on Cashfree tags
