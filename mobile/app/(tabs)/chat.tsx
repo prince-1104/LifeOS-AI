@@ -15,9 +15,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/expo";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, Radius, FontSize } from "@/constants/Theme";
-import { processInput, type ProcessResponse, type ProcessType } from "@/lib/api";
+import { processInput, getSubscriptionStatus, type ProcessResponse, type ProcessType } from "@/lib/api";
 import { useVoice } from "@/lib/useVoice";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -398,13 +399,24 @@ function TypingIndicator() {
 export default function ChatScreen() {
   const { getToken } = useAuth();
   const { user } = useUser();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [rows, setRows] = useState<ChatRow[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [hasVoiceAccess, setHasVoiceAccess] = useState(false);
   const { voiceState, recordingDuration, startRecording, stopRecording, cancelRecording, playAudioBase64, stopPlayback } = useVoice(getToken);
   const flatListRef = useRef<FlatList>(null);
+
+  // Fetch plan info for voice access check
+  useEffect(() => {
+    getSubscriptionStatus(getToken)
+      .then((status) => {
+        setHasVoiceAccess(status?.plan?.voice_input ?? false);
+      })
+      .catch(() => setHasVoiceAccess(false));
+  }, [getToken]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -502,6 +514,17 @@ export default function ChatScreen() {
 
   // ── Voice handler ──────────────────────────────────────────────────
   const handleVoicePress = useCallback(async () => {
+    if (!hasVoiceAccess && voiceState === "idle") {
+      Alert.alert(
+        "🔒 Voice Input",
+        "Voice input requires ₹499 Premium plan. Upgrade to unlock voice input & Premium TTS.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "View Plans", onPress: () => router.push("/pricing") },
+        ]
+      );
+      return;
+    }
     if (voiceState === "recording") {
       // Stop recording and process
       setLoading(true);
@@ -539,7 +562,7 @@ export default function ChatScreen() {
         Alert.alert("Permission Needed", "Please allow microphone access to use voice input.");
       }
     }
-  }, [voiceState, loading, startRecording, stopRecording, stopPlayback, scrollToBottom]);
+  }, [voiceState, loading, hasVoiceAccess, startRecording, stopRecording, stopPlayback, scrollToBottom, router]);
 
   const handleCancelVoice = useCallback(async () => {
     await cancelRecording();

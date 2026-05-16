@@ -32,9 +32,17 @@ _client = AsyncOpenAI(api_key=_settings.OPENAI_API_KEY)
 @router.post("/transcribe")
 async def transcribe(
     audio: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
     """Convert audio → text using OpenAI Whisper."""
+    from services.subscription_service import get_user_plan_config, check_feature_access
+
+    _, plan_config = await get_user_plan_config(db, user.id)
+    voice_check = check_feature_access(plan_config, "voice_input")
+    if not voice_check.allowed:
+        return {"success": False, "text": "", "error": voice_check.upgrade_message}
+
     audio_bytes = await audio.read()
     # Whisper expects a file-like object with a name attribute
     audio_file = io.BytesIO(audio_bytes)
@@ -60,9 +68,17 @@ async def transcribe(
 async def speak(
     text: str = Form(...),
     voice: str = Form("nova"),
+    db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
     """Convert text → speech using OpenAI TTS. Returns audio/mpeg stream."""
+    from services.subscription_service import get_user_plan_config, check_feature_access
+
+    _, plan_config = await get_user_plan_config(db, user.id)
+    tts_check = check_feature_access(plan_config, "premium_tts")
+    if not tts_check.allowed:
+        return {"success": False, "error": tts_check.upgrade_message}
+
     try:
         response = await _client.audio.speech.create(
             model="tts-1",
@@ -107,6 +123,21 @@ async def voice_process(
     await ensure_user_exists(db, user)
     user_id = user.id
     request_id = str(uuid.uuid4())
+
+    # ── Plan-based voice access check ─────────────────────────────────
+    from services.subscription_service import get_user_plan_config, check_feature_access
+
+    _, plan_config = await get_user_plan_config(db, user_id)
+    voice_check = check_feature_access(plan_config, "voice_input")
+    if not voice_check.allowed:
+        return {
+            "success": False,
+            "transcript": "",
+            "response": voice_check.upgrade_message,
+            "type": "limit",
+            "data": None,
+            "audio_base64": None,
+        }
 
     # Step 1: Transcribe
     audio_bytes = await audio.read()
@@ -198,11 +229,11 @@ async def voice_process(
 
     response_text = result.get("response", "")
 
-    # Step 3: Generate TTS if requested
+    # Step 3: Generate TTS if requested AND plan supports it
     import base64
 
     audio_base64 = None
-    if tts and response_text:
+    if tts and response_text and plan_config.premium_tts:
         try:
             # Clean markdown formatting for better TTS
             clean_text = _clean_for_tts(response_text)

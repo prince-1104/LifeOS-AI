@@ -47,6 +47,7 @@ export function ChatBox() {
   const [maxChars, setMaxChars] = useState(100); // default to free plan limit
   const [voiceState, setVoiceState] = useState<"idle" | "recording" | "processing" | "playing">("idle");
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [hasVoiceAccess, setHasVoiceAccess] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -94,8 +95,9 @@ export function ChatBox() {
         };
         const planName = status?.plan?.name || "free";
         setMaxChars(PLAN_CHAR_LIMITS[planName] ?? 100);
+        setHasVoiceAccess(status?.plan?.voice_input ?? false);
       })
-      .catch(() => setMaxChars(100));
+      .catch(() => { setMaxChars(100); setHasVoiceAccess(false); });
   }, [userLoaded, user?.id, getToken]);
 
   useEffect(() => {
@@ -360,6 +362,10 @@ export function ChatBox() {
   }, [cleanupVad]);
 
   const handleMicClick = useCallback(() => {
+    if (!hasVoiceAccess) {
+      router.push("/billing");
+      return;
+    }
     if (voiceState === "idle") startVoiceRecording();
     else if (voiceState === "recording") stopVoiceRecording();
     else if (voiceState === "playing") {
@@ -367,7 +373,7 @@ export function ChatBox() {
       audioPlayerRef.current = null;
       setVoiceState("idle");
     }
-  }, [voiceState, startVoiceRecording, stopVoiceRecording]);
+  }, [voiceState, hasVoiceAccess, startVoiceRecording, stopVoiceRecording, router]);
 
   const { rows, userId } = session;
   const activeDateId = searchParams?.get("date") || generateDateId(Date.now());
@@ -474,7 +480,9 @@ export function ChatBox() {
               <button
                 type="button"
                 className={`rounded-full p-2 transition ${
-                  voiceState === "recording"
+                  !hasVoiceAccess
+                    ? "text-amber-500/70 hover:bg-amber-500/10 hover:text-amber-400"
+                    : voiceState === "recording"
                     ? "animate-pulse bg-rose-500 text-white shadow-lg shadow-rose-500/40"
                     : voiceState === "processing"
                       ? "bg-indigo-500/20 text-indigo-400 animate-spin-slow"
@@ -482,11 +490,12 @@ export function ChatBox() {
                         ? "bg-indigo-500/20 text-indigo-400"
                         : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
                 }`}
-                aria-label={voiceState === "recording" ? "Stop recording" : voiceState === "playing" ? "Stop playback" : "Voice input"}
+                aria-label={!hasVoiceAccess ? "Upgrade for voice input" : voiceState === "recording" ? "Stop recording" : voiceState === "playing" ? "Stop playback" : "Voice input"}
+                title={!hasVoiceAccess ? "🔒 Voice input — Upgrade to ₹499 Premium" : undefined}
                 onClick={handleMicClick}
                 disabled={loading && voiceState === "idle"}
               >
-                {voiceState === "recording" ? <StopIcon /> : voiceState === "playing" ? <SpeakerIcon /> : <MicIcon />}
+                {!hasVoiceAccess ? <LockMicIcon /> : voiceState === "recording" ? <StopIcon /> : voiceState === "playing" ? <SpeakerIcon /> : <MicIcon />}
               </button>
               {voiceState === "recording" && (
                 <span className="text-xs font-medium text-rose-400 tabular-nums min-w-[36px]">
@@ -624,6 +633,27 @@ function SpeakerIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function LockMicIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M19 11a7 7 0 01-14 0M12 18v3M8 22h8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <rect x="14" y="14" width="9" height="7" rx="1.5" fill="currentColor" opacity="0.9" />
+      <path d="M16.5 14v-1.5a2 2 0 014 0V14" stroke="currentColor" strokeWidth="1.2" fill="none" />
     </svg>
   );
 }

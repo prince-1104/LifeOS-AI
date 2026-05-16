@@ -286,7 +286,7 @@ def check_feature_access(
         min_plan = min_plan_for_feature(feature)
         feature_labels = {
             "voice_input": "🎙️ Voice Input",
-            "premium_tts": "🔊 Premium Text-to-Speech",
+            "premium_tts": "🔊 Premium TTS",
             "priority_processing": "⚡ Priority Processing",
             "long_term_reminder": "📅 Long-term Reminders",
         }

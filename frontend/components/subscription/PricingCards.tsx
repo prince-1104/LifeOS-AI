@@ -31,7 +31,7 @@ function getFeatures(plan: PlanInfo | 'basic' | 'premium'): string[] {
   f.push(`${plan.reminders_per_day} reminders / day`);
   if (plan.long_term_reminder) f.push("Long-term reminders");
   if (plan.voice_input) f.push("Voice input");
-  if (plan.premium_tts) f.push("Premium text-to-speech");
+  if (plan.premium_tts) f.push("Premium TTS");
   return f;
 }
 
