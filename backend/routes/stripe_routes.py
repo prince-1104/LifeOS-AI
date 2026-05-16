@@ -354,15 +354,19 @@ async def create_subscription(
 
             session_id = order_data.get("payment_session_id", "")
 
-            # If no direct payment_link, construct the Cashfree hosted checkout URL
-            # from payment_session_id (critical for mobile WebBrowser redirect)
+            # If no direct payment_link, construct a redirect to our own checkout
+            # page which has the Cashfree JS SDK loaded (Cashfree has no standalone
+            # hosted checkout URL — the SDK must render it client-side)
             if not payment_link and session_id:
                 settings = get_settings()
-                if settings.CASHFREE_ENV == "production":
-                    payment_link = f"https://payments.cashfree.com/pgbillpay/checkout?payment_session_id={session_id}"
-                else:
-                    payment_link = f"https://sandbox.cashfree.com/pgbillpay/checkout?payment_session_id={session_id}"
-                print(f"[CASHFREE] Constructed checkout URL: {payment_link}", flush=True)
+                cashfree_env = settings.CASHFREE_ENV or "sandbox"
+                payment_link = (
+                    f"https://cortexa.doptonin.online/checkout"
+                    f"?session_id={session_id}"
+                    f"&order_id={order_id}"
+                    f"&env={cashfree_env}"
+                )
+                print(f"[CASHFREE] Constructed checkout redirect: {payment_link}", flush=True)
 
         # Save order ID to user record for webhook matching
         user.stripe_subscription_id = order_id  # reusing column for cashfree order id
