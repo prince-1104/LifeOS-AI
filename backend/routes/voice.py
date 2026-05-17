@@ -1,20 +1,23 @@
 """
 Voice I/O routes — transcribe (STT), speak (TTS), and full voice pipeline.
 
-Uses OpenAI Whisper for transcription and OpenAI TTS for speech synthesis.
-Note: Voice features require OpenAI. If OpenAI is unavailable (quota/key issue),
-these endpoints return a clear error — there is no Gemini equivalent for audio.
+Uses Gemini 2.0 Flash for transcription and Google Translate TTS for speech synthesis.
 """
 
 import io
 import logging
 import uuid
+import base64
+import urllib.parse
+import httpx
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
-from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from google import genai
+from google.genai import types
 
 from auth.deps import get_current_user
 from config import get_settings
@@ -26,7 +29,37 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice", tags=["voice"])
 
 _settings = get_settings()
-_client = AsyncOpenAI(api_key=_settings.OPENAI_API_KEY)
+_gemini_client = genai.Client(api_key=_settings.GEMINI_API_KEY)
+
+
+def chunk_text(text: str, limit: int = 150):
+    words = text.split()
+    chunks = []
+    current = []
+    current_len = 0
+    for w in words:
+        if current_len + len(w) + 1 > limit:
+            chunks.append(" ".join(current))
+            current = [w]
+            current_len = len(w)
+        else:
+            current.append(w)
+            current_len += len(w) + 1
+    if current:
+        chunks.append(" ".join(current))
+    return chunks
+
+
+async def _google_tts(text: str) -> bytes:
+    chunks = chunk_text(text, 150)
+    audio_data = b""
+    async with httpx.AsyncClient() as client:
+        for chunk in chunks:
+            url = f"https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q={urllib.parse.quote(chunk)}"
+            res = await client.get(url)
+            if res.status_code == 200:
+                audio_data += res.content
+    return audio_data
 
 
 @router.post("/transcribe")
@@ -35,7 +68,7 @@ async def transcribe(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Convert audio → text using OpenAI Whisper."""
+    """Convert audio → text using Gemini."""
     from services.subscription_service import get_user_plan_config, check_feature_access
 
     _, plan_config = await get_user_plan_config(db, user.id)
@@ -44,19 +77,20 @@ async def transcribe(
         return {"success": False, "text": "", "error": voice_check.upgrade_message}
 
     audio_bytes = await audio.read()
-    # Whisper expects a file-like object with a name attribute
-    audio_file = io.BytesIO(audio_bytes)
-    audio_file.name = audio.filename or "recording.webm"
+    filename = audio.filename or "recording.webm"
+    mime_type = "audio/mp4" if "m4a" in filename else "audio/webm"
 
     try:
-        transcript = await _client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file,
-            # No language parameter — let Whisper auto-detect (supports Hindi + English)
+        response = await _gemini_client.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                "Transcribe this audio exactly as it is spoken in its original language (e.g. Hindi or English). Do not add any extra commentary or translation. Output ONLY the transcription."
+            ],
         )
-        return {"success": True, "text": transcript.text}
+        return {"success": True, "text": response.text.strip()}
     except Exception as exc:
-        logger.exception("Whisper transcription failed (OpenAI unavailable)")
+        logger.exception("Gemini transcription failed")
         return {
             "success": False,
             "text": "",
@@ -71,7 +105,7 @@ async def speak(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Convert text → speech using OpenAI TTS. Returns audio/mpeg stream."""
+    """Convert text → speech using Google TTS. Returns audio/mpeg stream."""
     from services.subscription_service import get_user_plan_config, check_feature_access
 
     _, plan_config = await get_user_plan_config(db, user.id)
@@ -80,15 +114,7 @@ async def speak(
         return {"success": False, "error": tts_check.upgrade_message}
 
     try:
-        response = await _client.audio.speech.create(
-            model="tts-1",
-            voice=voice,
-            input=text[:4096],  # TTS limit
-            response_format="mp3",
-        )
-
-        # Stream the audio bytes
-        audio_bytes = response.content
+        audio_bytes = await _google_tts(text[:4096])
         return StreamingResponse(
             io.BytesIO(audio_bytes),
             media_type="audio/mpeg",
@@ -98,7 +124,7 @@ async def speak(
             },
         )
     except Exception as exc:
-        logger.exception("TTS generation failed (OpenAI unavailable)")
+        logger.exception("TTS generation failed")
         return {
             "success": False,
             "error": "Text-to-speech is temporarily unavailable. Please read the response as text.",
@@ -116,15 +142,11 @@ async def voice_process(
 ):
     """
     Full voice pipeline: Audio → Transcribe → Process → TTS response.
-
-    Returns JSON with transcript + text response, and optionally an audio_url
-    for the TTS response.
     """
     await ensure_user_exists(db, user)
     user_id = user.id
     request_id = str(uuid.uuid4())
 
-    # ── Plan-based voice access check ─────────────────────────────────
     from services.subscription_service import get_user_plan_config, check_feature_access
 
     _, plan_config = await get_user_plan_config(db, user_id)
@@ -139,53 +161,48 @@ async def voice_process(
             "audio_base64": None,
         }
 
-    # Step 1: Transcribe
     audio_bytes = await audio.read()
-    audio_file = io.BytesIO(audio_bytes)
-    audio_file.name = audio.filename or "recording.webm"
+    filename = audio.filename or "recording.webm"
+    mime_type = "audio/mp4" if "m4a" in filename else "audio/webm"
 
     import time as _time
 
     try:
         t_stt = _time.perf_counter()
-        transcript = await _client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file,
+        response = await _gemini_client.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                "Transcribe this audio exactly as it is spoken in its original language (e.g. Hindi or English). Do not add any extra commentary or translation. Output ONLY the transcription."
+            ],
         )
         stt_ms = (_time.perf_counter() - t_stt) * 1000.0
-        transcribed_text = transcript.text.strip()
+        transcribed_text = response.text.strip()
 
-        # ── Log STT cost ──────────────────────────────────────────────
-        # Whisper charges $0.006 per minute of audio.
-        # Estimate duration from file size (~16KB/sec for m4a at 128kbps).
         try:
-            estimated_seconds = max(len(audio_bytes) / 16000, 1)
-            estimated_minutes = estimated_seconds / 60
-            # Convert to pseudo-tokens for cost tracking (1 "token" = cost equivalent)
-            stt_cost_usd = estimated_minutes * 0.006
-            settings = get_settings()
-            stt_cost_inr = stt_cost_usd * settings.INR_PER_USD
-
+            total_tokens = 0
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                total_tokens = getattr(response.usage_metadata, "total_token_count", 0) or 0
+            
+            # Gemini cost is negligible for audio compared to Whisper, but log usage
             from services.usage_service import log_token_usage
-            from services.subscription_service import add_daily_cost
             await log_token_usage(
                 db,
                 request_id=request_id,
                 user_id=user_id,
-                model="whisper-1",
-                prompt_tokens=0,
+                model="gemini-2.0-flash",
+                prompt_tokens=total_tokens,
                 completion_tokens=0,
-                total_tokens=int(estimated_seconds),  # track seconds as pseudo-tokens
+                total_tokens=total_tokens,
                 endpoint="/voice/process:stt",
                 latency_ms=stt_ms,
             )
-            await add_daily_cost(db, user_id, int(estimated_seconds), stt_cost_inr)
             await db.commit()
         except Exception:
             logger.debug("Failed to log STT cost (non-fatal)")
 
     except Exception as exc:
-        logger.exception("Voice pipeline: transcription failed (OpenAI unavailable)")
+        logger.exception("Voice pipeline: transcription failed")
         return {
             "success": False,
             "transcript": "",
@@ -205,7 +222,6 @@ async def voice_process(
             "audio_base64": None,
         }
 
-    # Step 2: Process through existing pipeline
     tz: ZoneInfo | None = None
     if user_timezone:
         tz_str = user_timezone
@@ -229,46 +245,29 @@ async def voice_process(
 
     response_text = result.get("response", "")
 
-    # Step 3: Generate TTS if requested AND plan supports it
-    import base64
-
     audio_base64 = None
     if tts and response_text and plan_config.premium_tts:
         try:
-            # Clean markdown formatting for better TTS
             clean_text = _clean_for_tts(response_text)
             t_tts = _time.perf_counter()
-            tts_response = await _client.audio.speech.create(
-                model="tts-1",
-                voice=voice,
-                input=clean_text[:4096],
-                response_format="mp3",
-            )
+            audio_bytes_tts = await _google_tts(clean_text[:4096])
             tts_ms = (_time.perf_counter() - t_tts) * 1000.0
-            audio_base64 = base64.b64encode(tts_response.content).decode("utf-8")
+            audio_base64 = base64.b64encode(audio_bytes_tts).decode("utf-8")
 
-            # ── Log TTS cost ──────────────────────────────────────────
-            # TTS-1 charges $15 per 1M characters.
             try:
                 char_count = len(clean_text[:4096])
-                tts_cost_usd = (char_count / 1_000_000) * 15.0
-                settings = get_settings()
-                tts_cost_inr = tts_cost_usd * settings.INR_PER_USD
-
                 from services.usage_service import log_token_usage
-                from services.subscription_service import add_daily_cost
                 await log_token_usage(
                     db,
                     request_id=request_id,
                     user_id=user_id,
-                    model="tts-1",
+                    model="google-tts",
                     prompt_tokens=char_count,
                     completion_tokens=0,
                     total_tokens=char_count,
                     endpoint="/voice/process:tts",
                     latency_ms=tts_ms,
                 )
-                await add_daily_cost(db, user_id, char_count, tts_cost_inr)
                 await db.commit()
             except Exception:
                 logger.debug("Failed to log TTS cost (non-fatal)")
@@ -293,7 +292,7 @@ def _clean_for_tts(text: str) -> str:
     # Remove markdown bold/italic
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     text = re.sub(r"\*(.+?)\*", r"\1", text)
-    # Remove common emojis (keep the text around them)
+    # Remove common emojis
     text = re.sub(
         r"[💰🧠⏰🔍❌💬💵📊📋📅💸📈📉🏷️✅⏳🤖💊📞🛒💳🎂🏋️📚☕🍕🚕🏠█]",
         "",
