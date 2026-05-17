@@ -65,6 +65,43 @@ export function ChatBox() {
     });
   }, []);
 
+  // ── Mobile keyboard stability ───────────────────────────────────────
+  // On mobile browsers, the virtual keyboard can shift the entire page up
+  // hiding the header/hamburger. We prevent this by scrolling to top on
+  // the window level and only scrolling within our chat scroll area.
+  useEffect(() => {
+    const handleFocus = () => {
+      // When input is focused on mobile, prevent the page from scrolling up
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      });
+    };
+
+    const handleResize = () => {
+      // When visualViewport changes (keyboard open/close), keep window at top
+      window.scrollTo(0, 0);
+    };
+
+    const input = inputRef.current;
+    input?.addEventListener("focus", handleFocus);
+
+    // Use visualViewport API for better mobile keyboard handling
+    if (typeof window !== "undefined" && window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleResize);
+      window.visualViewport.addEventListener("scroll", handleResize);
+    }
+
+    return () => {
+      input?.removeEventListener("focus", handleFocus);
+      if (typeof window !== "undefined" && window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", handleResize);
+        window.visualViewport.removeEventListener("scroll", handleResize);
+      }
+    };
+  }, []);
+
   useLayoutEffect(() => {
     if (!userLoaded || !user?.id) {
       canPersistRef.current = false;

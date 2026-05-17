@@ -204,7 +204,7 @@ export function Sidebar({
       )}
 
       {/* Download Mobile App */}
-      <div className="absolute bottom-6 left-0 right-0 px-4">
+      <div className="mt-auto px-4 pb-3">
         <Link
           href="https://expo.dev/artifacts/eas/2F1F3Kvav2HdC3uw7ghJD.apk"
           download

@@ -209,7 +209,7 @@ function getTypeColor(type: string): string {
 }
 
 // ── Typewriter Animation ────────────────────────────────────────────────
-function TypewriterText({ text, style, speed = 18 }: { text: string; style?: any; speed?: number }) {
+function TypewriterText({ text, style, speed = 12 }: { text: string; style?: any; speed?: number }) {
   const [displayedText, setDisplayedText] = useState("");
   const [done, setDone] = useState(false);
 
@@ -383,7 +383,7 @@ function ThinkingIndicator() {
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 300,
+      duration: 150,
       useNativeDriver: true,
     }).start();
   }, []);
@@ -392,7 +392,7 @@ function ThinkingIndicator() {
   useEffect(() => {
     const timer = setInterval(() => {
       setPhraseIndex((i) => (i + 1) % THINKING_PHRASES.length);
-    }, 2800);
+    }, 2200);
     return () => clearInterval(timer);
   }, []);
 
@@ -510,8 +510,19 @@ export default function ChatScreen() {
   }, [getToken]);
 
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    // Immediate attempt + delayed fallback to catch post-render layout
+    flatListRef.current?.scrollToEnd({ animated: true });
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
   }, []);
+
+  // Auto-scroll when loading state changes (thinking indicator appears/disappears)
+  useEffect(() => {
+    if (loading) {
+      // Multiple staggered scrolls to ensure ThinkingIndicator is fully visible
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 200);
+    }
+  }, [loading]);
 
   // Auto-scroll when keyboard shows (fixes Android keyboard overlap)
   useEffect(() => {
@@ -560,10 +571,13 @@ export default function ChatScreen() {
       text: trimmed,
       timestamp: Date.now(),
     };
+    // Set loading immediately so ThinkingIndicator shows with minimal delay
     setRows((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
+    // Scroll immediately + after a brief render cycle to show thinking indicator
     scrollToBottom();
+    setTimeout(() => scrollToBottom(), 150);
 
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -599,7 +613,9 @@ export default function ChatScreen() {
       setRows((prev) => [...prev, errRow]);
     } finally {
       setLoading(false);
+      // Scroll after response + delayed scroll for typewriter content expansion
       scrollToBottom();
+      setTimeout(() => scrollToBottom(), 300);
     }
   }, [input, loading, getToken]);
 
