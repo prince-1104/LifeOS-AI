@@ -30,50 +30,40 @@ async def init_db():
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # ── Batch 1: core table migrations (single round-trip) ────────
         await conn.execute(
             text(
                 "ALTER TABLE memories ADD COLUMN IF NOT EXISTS user_id "
-                "VARCHAR(255) NOT NULL DEFAULT 'default'"
+                "VARCHAR(255) NOT NULL DEFAULT 'default';\n"
+                "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS request_id VARCHAR(36);\n"
+                "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS latency_ms_total NUMERIC(12,3);\n"
+                "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS snooze_count INTEGER DEFAULT 0 NOT NULL;"
             )
         )
+
+        # ── Batch 2: user profile columns (single round-trip) ────────
         await conn.execute(
             text(
-                "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS request_id VARCHAR(36)"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(255);\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(255);\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(255);\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS image_url TEXT;\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_sign_in_at TIMESTAMPTZ;\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();"
             )
         )
+
+        # ── Batch 3: subscription columns (single round-trip) ────────
         await conn.execute(
             text(
-                "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS latency_ms_total NUMERIC(12,3)"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(50) NOT NULL DEFAULT 'free';\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255);\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_start_date TIMESTAMPTZ;\n"
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_end_date TIMESTAMPTZ;"
             )
         )
-        await conn.execute(
-            text(
-                "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS snooze_count INTEGER DEFAULT 0 NOT NULL"
-            )
-        )
-        # ── User profile columns (Clerk sync) ────────────────────────
-        for col_def in [
-            "first_name VARCHAR(255)",
-            "last_name VARCHAR(255)",
-            "username VARCHAR(255)",
-            "phone VARCHAR(50)",
-            "image_url TEXT",
-            "last_sign_in_at TIMESTAMPTZ",
-            "updated_at TIMESTAMPTZ DEFAULT NOW()",
-        ]:
-            await conn.execute(
-                text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_def}")
-            )
-        # ── Subscription columns ─────────────────────────────────────
-        for col_def in [
-            "plan VARCHAR(50) NOT NULL DEFAULT 'free'",
-            "stripe_customer_id VARCHAR(255)",
-            "stripe_subscription_id VARCHAR(255)",
-            "plan_start_date TIMESTAMPTZ",
-            "plan_end_date TIMESTAMPTZ",
-        ]:
-            await conn.execute(
-                text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_def}")
-            )
 
 

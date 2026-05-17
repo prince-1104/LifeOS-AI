@@ -4,7 +4,7 @@ import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { 
   ChartBarIcon, 
   MapPinIcon, 
@@ -12,12 +12,17 @@ import {
   StarIcon 
 } from "@heroicons/react/24/solid";
 import { CpuChipIcon } from "@heroicons/react/24/outline";
-import { ParticleBackground } from "./ParticleBackground";
+
+// Lazy-load Three.js particle background so it doesn't block initial paint
+const ParticleBackground = lazy(() =>
+  import("./ParticleBackground").then((m) => ({ default: m.ParticleBackground }))
+);
 
 export function LandingPage() {
   const { isSignedIn, isLoaded, user } = useUser();
   const router = useRouter();
 
+  // Redirect signed-in users silently — don't block page render
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       if (user?.primaryEmailAddress?.emailAddress === "doptonin@gmail.com") {
@@ -28,15 +33,8 @@ export function LandingPage() {
     }
   }, [isLoaded, isSignedIn, user, router]);
 
-  if (!isLoaded) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0e0716] text-[#FF9ECA]">
-        <div className="animate-pulse">Loading...</div>
-      </div>
-    );
-  }
-
-  if (isSignedIn) {
+  // If already signed in after Clerk loads, show a minimal redirect state
+  if (isLoaded && isSignedIn) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0e0716] text-[#FF9ECA]">
         <div className="animate-pulse">Redirecting...</div>
@@ -44,11 +42,15 @@ export function LandingPage() {
     );
   }
 
+  // Render the full landing page IMMEDIATELY — don't wait for Clerk
+
   return (
     <div className="relative min-h-screen bg-[#0e0716] text-white selection:bg-[#FF9ECA] selection:text-[#0e0716] font-sans pb-0">
-      {/* 3D Particle Background */}
+      {/* 3D Particle Background — lazy-loaded so it doesn't block first paint */}
       <div className="fixed inset-0 z-0">
-        <ParticleBackground />
+        <Suspense fallback={null}>
+          <ParticleBackground />
+        </Suspense>
       </div>
       {/* Navbar */}
       <nav className="fixed top-0 inset-x-0 z-50 bg-[#0e0716]/60 backdrop-blur-xl border-b border-white/[0.05]">

@@ -5,6 +5,7 @@ Always follow structured agent-based architecture.
 Avoid unnecessary LLM calls. Prefer deterministic logic wherever possible.
 """
 
+import asyncio
 import uuid
 from contextlib import asynccontextmanager
 from zoneinfo import ZoneInfo
@@ -34,8 +35,8 @@ from scheduler.reminder_scheduler import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
-    await init_qdrant()
+    # Run DB and Qdrant init concurrently to cut cold-start time
+    await asyncio.gather(init_db(), init_qdrant())
     start_reminder_scheduler()
     try:
         yield
