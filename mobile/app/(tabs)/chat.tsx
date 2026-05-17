@@ -374,7 +374,6 @@ const THINKING_PHRASES = [
 function ThinkingIndicator() {
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [dots, setDots] = useState(1);
-  const [elapsed, setElapsed] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -401,12 +400,6 @@ function ThinkingIndicator() {
     const timer = setInterval(() => {
       setDots((d) => (d % 3) + 1);
     }, 500);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Elapsed timer
-  useEffect(() => {
-    const timer = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -478,7 +471,6 @@ function ThinkingIndicator() {
                 ]}
               />
             </View>
-            <Text style={styles.thinkingElapsed}>{elapsed}s</Text>
           </View>
         </View>
       </View>

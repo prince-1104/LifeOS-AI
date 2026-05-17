@@ -593,7 +593,6 @@ const THINKING_PHRASES = [
 function ThinkingIndicator() {
   const [index, setIndex] = useState(0);
   const [dots, setDots] = useState(1);
-  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     const phraseTimer = setInterval(() => {
@@ -607,11 +606,6 @@ function ThinkingIndicator() {
       setDots((d) => (d % 3) + 1);
     }, 500);
     return () => clearInterval(dotTimer);
-  }, []);
-
-  useEffect(() => {
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(t);
   }, []);
 
   const phrase = THINKING_PHRASES[index];
@@ -636,9 +630,6 @@ function ThinkingIndicator() {
               <div className="thinking-progress-track">
                 <div className="thinking-progress-bar" />
               </div>
-              <span className="text-[10px] tabular-nums text-zinc-500 shrink-0">
-                {elapsed}s
-              </span>
             </div>
           </div>
         </div>
