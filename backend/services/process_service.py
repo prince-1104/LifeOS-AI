@@ -146,6 +146,40 @@ async def process_input(
             data={"reason": "input_too_long", "max_chars": max_chars, "upgrade_plan": next_plan.name if next_plan else None},
         )
 
+    # ── Instant Greeting Intercept (Zero Token Cost) ──────────────────
+    import re
+    cleaned_input = re.sub(r'[^\w\s]', '', input_text.lower()).strip()
+    if cleaned_input in ["hi", "hello", "hey", "start"]:
+        display_name = user_name or "there"
+        if not user_name:
+            try:
+                from sqlalchemy import text as sql_text
+                result = await db.execute(
+                    sql_text("SELECT first_name FROM users WHERE id = :uid"),
+                    {"uid": user_id},
+                )
+                row = result.fetchone()
+                if row and row[0]:
+                    display_name = row[0]
+            except Exception:
+                logger.exception("Failed to fetch user name for greeting")
+
+        welcome_msg = (
+            f"Hello {display_name}! 👋\n\n"
+            f"I'm your personal life assistant. Here's what I can do for you:\n\n"
+            f"💰 **Daily Expenses** — Just tell me what you spent, e.g. \"spent 200 on food\"\n"
+            f"⏰ **Reminders** — e.g. \"remind me at 7pm to call mom\"\n"
+            f"🧠 **Memory** — e.g. \"remember my wifi password is abc123\"\n\n"
+            f"Go ahead, I'll handle it for you! 🚀"
+        )
+        return _envelope(
+            success=True,
+            type_str="greeting",
+            response=welcome_msg,
+            request_id=request_id,
+            data={"reason": "instant_greeting"},
+        )
+
     # 1. Daily request limit
     req_check = await check_daily_request_limit(db, user_id, plan_config)
     if not req_check.allowed:
