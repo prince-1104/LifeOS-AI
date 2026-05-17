@@ -221,7 +221,7 @@ export function Sidebar({
           <span className="rounded-md bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-bold text-indigo-400 border border-indigo-500/30">
             APK
           </span>
-        </a>
+        </Link>
       </div>
 
       <div className="border-t border-white/[0.06] p-4">
