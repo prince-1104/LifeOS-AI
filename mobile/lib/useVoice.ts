@@ -231,7 +231,14 @@ export function useVoice(getToken: GetToken) {
     } catch (err) {
       console.error("Voice processing failed:", err);
       setVoiceState("idle");
-      return null;
+      const errMsg = err instanceof Error ? err.message : "Voice processing failed";
+      return {
+        transcript: "",
+        response: `🎙️ Voice Error: ${errMsg}`,
+        type: "error",
+        data: null,
+        success: false,
+      };
     }
   }, [getToken, cleanupVad]);
 

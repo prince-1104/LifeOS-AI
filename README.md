@@ -27,35 +27,7 @@ Cortexa AI is a full-stack personal intelligence platform that uses LLMs to unde
 
 All through a single conversational interface — no forms, no buttons, just talk.
 
-## 🏗️ Architecture
 
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   Frontend   │     │    Mobile    │     │   Backend    │
-│   Next.js    │────▶│  React Native│────▶│   FastAPI    │
-│   Port 3006  │     │  Expo (EAS)  │     │   Port 6060  │
-└──────────────┘     └──────────────┘     └──────┬───────┘
-                                                  │
-                          ┌───────────────────────┼───────────────────────┐
-                          │                       │                       │
-                    ┌─────▼─────┐          ┌──────▼──────┐        ┌──────▼──────┐
-                    │ PostgreSQL │          │  AI/LLM     │        │  Cashfree   │
-                    │  Database  │          │  Orchestrator│        │  Payments   │
-                    └───────────┘          └─────────────┘        └─────────────┘
-```
-
-### Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js 14, React, TailwindCSS |
-| **Mobile** | React Native, Expo (EAS Build) |
-| **Backend** | Python, FastAPI, SQLAlchemy |
-| **Database** | PostgreSQL |
-| **Auth** | Clerk (JWT-based, both web & mobile) |
-| **AI/LLM** | OpenAI GPT, multi-agent orchestrator |
-| **Payments** | Cashfree (INR billing, UPI support) |
-| **Hosting** | Railway (backend), Vercel/Custom (frontend) |
 
 ## 🚀 Features
 

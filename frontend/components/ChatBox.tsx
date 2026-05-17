@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   Fragment,
@@ -328,7 +329,22 @@ export function ChatBox() {
           } else {
             setVoiceState("idle");
           }
-        } catch {
+        } catch (err) {
+          console.error("Voice processing failed:", err);
+          const errMsg = err instanceof Error ? err.message : "Voice processing failed. Please try again.";
+          const errRow: ChatRow = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            assistant: {
+              success: false,
+              type: "error",
+              response: `🎙️ Voice Error: ${errMsg}`,
+              data: null,
+            },
+            timestamp: Date.now(),
+          };
+          setSession((s) => ({ ...s, rows: [...s.rows, errRow] }));
+          scrollToBottom();
           setVoiceState("idle");
         } finally {
           setLoading(false);
@@ -437,15 +453,7 @@ export function ChatBox() {
               </Fragment>
             );
           })}
-          {loading ? (
-            <div className="flex justify-start">
-              <div className="glass-panel flex items-center gap-1.5 rounded-2xl px-4 py-3">
-                <span className="typing-dot h-2 w-2 rounded-full bg-slate-500" />
-                <span className="typing-dot h-2 w-2 rounded-full bg-slate-500" />
-                <span className="typing-dot h-2 w-2 rounded-full bg-slate-500" />
-              </div>
-            </div>
-          ) : null}
+          {loading ? <ThinkingIndicator /> : null}
           <div ref={bottomRef} />
         </div>
       </div>
@@ -528,6 +536,73 @@ export function ChatBox() {
             {input.length > maxChars && (
               <span className="text-xs text-rose-400/80">Upgrade plan for longer messages</span>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Thinking Indicator ─────────────────────────────────────────────── */
+const THINKING_PHRASES = [
+  { icon: "✨", text: "Analyzing your request" },
+  { icon: "🧠", text: "Thinking deeply" },
+  { icon: "🔍", text: "Searching your data" },
+  { icon: "⚡", text: "Crafting the perfect response" },
+  { icon: "🎯", text: "Connecting the dots" },
+  { icon: "💡", text: "Almost there" },
+];
+
+function ThinkingIndicator() {
+  const [index, setIndex] = useState(0);
+  const [dots, setDots] = useState(1);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const phraseTimer = setInterval(() => {
+      setIndex((i) => (i + 1) % THINKING_PHRASES.length);
+    }, 2800);
+    return () => clearInterval(phraseTimer);
+  }, []);
+
+  useEffect(() => {
+    const dotTimer = setInterval(() => {
+      setDots((d) => (d % 3) + 1);
+    }, 500);
+    return () => clearInterval(dotTimer);
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const phrase = THINKING_PHRASES[index];
+  const dotStr = ".".repeat(dots);
+
+  return (
+    <div className="flex justify-start animate-message-in">
+      <div className="glass-panel thinking-indicator rounded-2xl px-5 py-3.5 max-w-[320px]">
+        <div className="flex items-center gap-3">
+          {/* Pulsing icon */}
+          <span className="thinking-icon text-lg" aria-hidden>
+            {phrase.icon}
+          </span>
+          <div className="flex flex-col gap-1 min-w-0">
+            {/* Shimmer text */}
+            <span className="thinking-text text-sm font-medium text-zinc-300">
+              {phrase.text}
+              <span className="thinking-dots">{dotStr}</span>
+            </span>
+            {/* Elapsed time + progress bar */}
+            <div className="flex items-center gap-2">
+              <div className="thinking-progress-track">
+                <div className="thinking-progress-bar" />
+              </div>
+              <span className="text-[10px] tabular-nums text-zinc-500 shrink-0">
+                {elapsed}s
+              </span>
+            </div>
           </div>
         </div>
       </div>

@@ -204,12 +204,11 @@ export function Sidebar({
       )}
 
       {/* Download Mobile App */}
-      <div className="px-4 pb-4">
-        <a
-          href="https://expo.dev/artifacts/eas/uVL4pnCAJZFsDW853KM1Hq.apk"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="group relative flex items-center justify-between overflow-hidden rounded-xl border border-indigo-500/20 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 px-4 py-3 transition hover:border-indigo-500/40 hover:from-indigo-500/20 hover:to-purple-500/20"
+      <div className="absolute bottom-6 left-0 right-0 px-4">
+        <Link
+          href="https://expo.dev/artifacts/eas/2F1F3Kvav2HdC3uw7ghJD.apk"
+          download
+          className="flex w-full items-center justify-between rounded-xl bg-[#E8D1FF]/10 px-4 py-3 text-sm font-medium text-[#E8D1FF] transition-all hover:bg-[#E8D1FF]/20 border border-[#E8D1FF]/10"
         >
           <div className="flex items-center gap-2 text-sm font-medium text-indigo-300">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

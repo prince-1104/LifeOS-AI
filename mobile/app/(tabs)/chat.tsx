@@ -361,37 +361,128 @@ function MessageBubble({ row }: { row: ChatRow }) {
   );
 }
 
-// ── Typing Indicator ────────────────────────────────────────────────────
-function TypingIndicator() {
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
+// ── Thinking Indicator ──────────────────────────────────────────────────
+const THINKING_PHRASES = [
+  { icon: "✨", text: "Analyzing your request" },
+  { icon: "🧠", text: "Thinking deeply" },
+  { icon: "🔍", text: "Searching your data" },
+  { icon: "⚡", text: "Crafting the perfect response" },
+  { icon: "🎯", text: "Connecting the dots" },
+  { icon: "💡", text: "Almost there" },
+];
 
+function ThinkingIndicator() {
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [dots, setDots] = useState(1);
+  const [elapsed, setElapsed] = useState(0);
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Fade in on mount
   useEffect(() => {
-    const animate = (dot: Animated.Value, delay: number) => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(dot, { toValue: -4, duration: 300, useNativeDriver: true }),
-          Animated.timing(dot, { toValue: 0, duration: 300, useNativeDriver: true }),
-          Animated.delay(600),
-        ])
-      ).start();
-    };
-    animate(dot1, 0);
-    animate(dot2, 150);
-    animate(dot3, 300);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
+  // Cycle phrases every 2.8s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPhraseIndex((i) => (i + 1) % THINKING_PHRASES.length);
+    }, 2800);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Animate dots
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setDots((d) => (d % 3) + 1);
+    }, 500);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Elapsed timer
+  useEffect(() => {
+    const timer = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Indeterminate progress bar animation
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(progressAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: false,
+        }),
+        Animated.timing(progressAnim, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  // Pulse icon animation
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const phrase = THINKING_PHRASES[phraseIndex];
+  const dotStr = ".".repeat(dots);
+
+  const progressLeft = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "60%"],
+  });
+
   return (
-    <View style={styles.typingContainer}>
-      {[dot1, dot2, dot3].map((dot, i) => (
-        <Animated.View
-          key={i}
-          style={[styles.typingDot, { transform: [{ translateY: dot }] }]}
-        />
-      ))}
-    </View>
+    <Animated.View style={[styles.thinkingContainer, { opacity: fadeAnim }]}>
+      <View style={styles.thinkingContent}>
+        <Animated.Text style={[styles.thinkingIcon, { transform: [{ scale: pulseAnim }] }]}>
+          {phrase.icon}
+        </Animated.Text>
+        <View style={styles.thinkingTextWrap}>
+          <Text style={styles.thinkingText}>
+            {phrase.text}
+            <Text style={styles.thinkingDots}>{dotStr}</Text>
+          </Text>
+          <View style={styles.thinkingProgressRow}>
+            <View style={styles.thinkingProgressTrack}>
+              <Animated.View
+                style={[
+                  styles.thinkingProgressBar,
+                  { left: progressLeft },
+                ]}
+              />
+            </View>
+            <Text style={styles.thinkingElapsed}>{elapsed}s</Text>
+          </View>
+        </View>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -548,10 +639,13 @@ export default function ChatScreen() {
           },
           timestamp: Date.now(),
         };
-        setRows((prev) => [...prev, userMsg, assistantRow]);
+        
+        if (result.type === "error" && !result.transcript) {
+          setRows((prev) => [...prev, assistantRow]);
+        } else {
+          setRows((prev) => [...prev, userMsg, assistantRow]);
+        }
         scrollToBottom();
-      } else {
-        Alert.alert("Voice Error", "Could not process voice input. Please try again.");
       }
       setLoading(false);
     } else if (voiceState === "playing") {
@@ -624,7 +718,7 @@ export default function ChatScreen() {
               </View>
             </View>
           }
-          ListFooterComponent={loading ? <TypingIndicator /> : null}
+          ListFooterComponent={loading ? <ThinkingIndicator /> : null}
           onContentSizeChange={scrollToBottom}
         />
 
@@ -867,6 +961,62 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: Colors.textMuted,
+  },
+  // Thinking indicator
+  thinkingContainer: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(30, 27, 46, 0.9)",
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: "rgba(99, 102, 241, 0.15)",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+    maxWidth: "85%",
+  },
+  thinkingContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  thinkingIcon: {
+    fontSize: 18,
+  },
+  thinkingTextWrap: {
+    flex: 1,
+    gap: 6,
+  },
+  thinkingText: {
+    fontSize: FontSize.sm,
+    fontWeight: "500",
+    color: Colors.textSecondary,
+  },
+  thinkingDots: {
+    color: Colors.textMuted,
+  },
+  thinkingProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  thinkingProgressTrack: {
+    flex: 1,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    overflow: "hidden",
+  },
+  thinkingProgressBar: {
+    position: "absolute",
+    width: "40%",
+    height: "100%",
+    borderRadius: 1,
+    backgroundColor: Colors.accent,
+  },
+  thinkingElapsed: {
+    fontSize: 10,
+    color: Colors.textDark,
+    fontVariant: ["tabular-nums"],
   },
   // Empty state
   emptyState: {
