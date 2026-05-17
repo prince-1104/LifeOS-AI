@@ -2,6 +2,7 @@
 
 import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { 
